@@ -1,0 +1,79 @@
+:root {
+  /* Palette */
+  --color-bg: #14100c;
+  --color-surface: #241c15;
+  --color-surface-raised: #2e241b;
+  --color-border: #3d2f22;
+  --color-border-strong: #5a4632;
+  --color-text: #e9ddca;
+  --color-text-muted: #a8977e;
+  --color-accent: #c9a24b;
+  --color-accent-strong: #e6bd5c;
+
+  /* Grid feedback */
+  --color-cell: #1c1610;
+  --color-cell-usable: #201811;
+  --color-cell-disabled: #100c08;
+  --color-valid: #4f9d5b;
+  --color-valid-soft: rgba(79, 157, 91, 0.35);
+  --color-invalid: #b8453f;
+  --color-invalid-soft: rgba(184, 69, 63, 0.35);
+
+  /* Rarity */
+  --rarity-common: #b8b0a2;
+  --rarity-uncommon: #5fae62;
+  --rarity-rare: #4f8cd6;
+  --rarity-epic: #a465d6;
+  --rarity-legendary: #e0a13a;
+
+  /* Metrics */
+  --cell-size: 3rem;
+  --radius: 0.5rem;
+
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-block-size: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 30% 0%, #241c14 0%, var(--color-bg) 60%);
+  color: var(--color-text);
+  min-block-size: 100dvh;
+}
+
+#root {
+  min-block-size: 100dvh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

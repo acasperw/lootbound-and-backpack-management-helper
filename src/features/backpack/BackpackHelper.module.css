@@ -1,0 +1,121 @@
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.5rem;
+}
+
+.held {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  color: var(--color-text);
+}
+
+.button {
+  padding: 0.5rem 1rem;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.button:hover {
+  background: #3a2d20;
+  border-color: var(--color-accent);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary {
+  padding: 0.5rem 1.25rem;
+  background: var(--color-accent);
+  color: #1a1206;
+  font-weight: 700;
+  border: 1px solid var(--color-accent-strong);
+  border-radius: var(--radius);
+  transition: background-color 120ms ease, transform 80ms ease;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-strong);
+  transform: translateY(-1px);
+}
+
+.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.warning {
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  color: #f2c1bd;
+  background: var(--color-invalid-soft);
+  border: 1px solid var(--color-invalid);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.manual {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.stats {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.statValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-accent-strong);
+}
+
+.statLabel {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

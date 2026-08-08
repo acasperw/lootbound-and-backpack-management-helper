@@ -1,0 +1,26 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+}
+
+.header {
+  padding: 1.5rem 1.5rem 0.5rem;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  color: var(--color-accent-strong);
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.main {
+  flex: 1;
+}
