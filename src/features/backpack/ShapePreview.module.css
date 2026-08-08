@@ -1,0 +1,15 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--mini-cell));
+  grid-auto-rows: var(--mini-cell);
+  gap: 1px;
+}
+
+.filled {
+  border-radius: 2px;
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.empty {
+  background: transparent;
+}
