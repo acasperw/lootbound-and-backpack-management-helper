@@ -17,6 +17,16 @@ export function App() {
           <BackpackHelper />
         </BackpackProvider>
       </main>
+      <footer className={styles.footer}>
+        <a
+          className={styles.sourceLink}
+          href="https://github.com/acasperw/lootbound-and-backpack-management-helper"
+          target="_blank"
+          rel="noreferrer"
+        >
+          View source on GitHub
+        </a>
+      </footer>
     </div>
   );
 }
