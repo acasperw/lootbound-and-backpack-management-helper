@@ -1,11 +1,42 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useBackpack } from '@/features/backpack/BackpackContext';
-import { cellKey, rotateShape, shapeCells } from '@/lib/grid';
+import { cellKey, placedItemCells, rotateShape, shapeCells } from '@/lib/grid';
 import styles from '@/features/backpack/BackpackGrid.module.css';
 
 interface CellState {
   color: string;
   instanceId: string;
+}
+
+/** A placed item's label and the cell its name is anchored over. */
+interface InstanceLabel {
+  instanceId: string;
+  name: string;
+  color: string;
+  /** Cell the label is centered on (nearest filled cell to the centroid). */
+  anchorX: number;
+  anchorY: number;
+  /** Bounding-box width in cells, used to give the text room to wrap. */
+  width: number;
+}
+
+/** Pick a readable text color (black/white) for a given hex/CSS color. */
+function readableTextColor(color: string): string {
+  const hex = color.trim().replace('#', '');
+  if (hex.length !== 3 && hex.length !== 6) return '#ffffff';
+  const full =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : hex;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  // Perceived luminance (ITU-R BT.601).
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#111111' : '#ffffff';
 }
 
 /**
@@ -42,6 +73,62 @@ export function BackpackGrid() {
     }
     return map;
   }, [placed, definitionsById, occupancy]);
+
+  // Compute one label per placed item, anchored to the filled cell nearest the
+  // item's centroid so the name always sits over the item (e.g. L/T shapes).
+  const instanceLabels = useMemo(() => {
+    const labels: InstanceLabel[] = [];
+    for (const item of placed) {
+      const definition = definitionsById.get(item.definitionId);
+      if (!definition) continue;
+      const cells = placedItemCells(item, definition);
+      if (cells.length === 0) continue;
+      const xs = cells.map((c) => c.x);
+      const ys = cells.map((c) => c.y);
+      const centroidX = xs.reduce((a, b) => a + b, 0) / cells.length;
+      const centroidY = ys.reduce((a, b) => a + b, 0) / cells.length;
+      let anchor = cells[0];
+      let best = Infinity;
+      for (const cell of cells) {
+        const dist = (cell.x - centroidX) ** 2 + (cell.y - centroidY) ** 2;
+        if (dist < best) {
+          best = dist;
+          anchor = cell;
+        }
+      }
+      labels.push({
+        instanceId: item.instanceId,
+        name: definition.name,
+        color: definition.color,
+        anchorX: anchor.x,
+        anchorY: anchor.y,
+        width: Math.max(...xs) - Math.min(...xs) + 1,
+      });
+    }
+    return labels;
+  }, [placed, definitionsById]);
+
+  // Build a box-shadow that fills the gap between same-item cells (so an item
+  // reads as one solid block) and draws a crisp outline where it borders a
+  // different item, empty space, or a disabled cell.
+  const cellEdgeShadow = (x: number, y: number, occupant: CellState): string => {
+    const parts: string[] = [];
+    const sides: Array<{ dx: number; dy: number; fill: string; edge: string }> = [
+      { dx: 1, dy: 0, fill: `2px 0 0 0`, edge: `inset -2px 0 0 0` },
+      { dx: -1, dy: 0, fill: `-2px 0 0 0`, edge: `inset 2px 0 0 0` },
+      { dx: 0, dy: 1, fill: `0 2px 0 0`, edge: `inset 0 -2px 0 0` },
+      { dx: 0, dy: -1, fill: `0 -2px 0 0`, edge: `inset 0 2px 0 0` },
+    ];
+    for (const side of sides) {
+      const neighbor = occupiedCells.get(cellKey(x + side.dx, y + side.dy));
+      if (neighbor?.instanceId === occupant.instanceId) {
+        parts.push(`${side.fill} ${occupant.color}`);
+      } else {
+        parts.push(`${side.edge} var(--color-item-outline)`);
+      }
+    }
+    return parts.join(', ');
+  };
 
   // Compute the set of cells the held item would cover at the hovered anchor.
   const preview = useMemo(() => {
@@ -104,7 +191,14 @@ export function BackpackGrid() {
                 key={key}
                 type="button"
                 className={classNames.join(' ')}
-                style={occupant ? { backgroundColor: occupant.color } : undefined}
+                style={
+                  occupant
+                    ? {
+                        backgroundColor: occupant.color,
+                        boxShadow: cellEdgeShadow(x, y, occupant),
+                      }
+                    : undefined
+                }
                 disabled={!usable}
                 aria-label={label}
                 onMouseEnter={() => setHover({ x, y })}
@@ -120,6 +214,24 @@ export function BackpackGrid() {
             );
           }),
         )}
+        <div className={styles.labels} aria-hidden="true">
+          {instanceLabels.map((item) => (
+            <span
+              key={item.instanceId}
+              className={styles.label}
+              style={
+                {
+                  '--label-x': item.anchorX,
+                  '--label-y': item.anchorY,
+                  '--label-width': item.width,
+                  color: readableTextColor(item.color),
+                } as CSSProperties
+              }
+            >
+              {item.name}
+            </span>
+          ))}
+        </div>
       </div>
       <p className={styles.hint}>
         {held
