@@ -1,0 +1,1 @@
+Building a Backpack Management Helper for the game Lootbound and similar games. The helper will provide tools to manage loot and backpack efficiently, including interactive features for organizing items, tracking inventory, and optimizing space.
