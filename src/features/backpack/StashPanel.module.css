@@ -110,6 +110,11 @@
   border-color: var(--color-invalid);
 }
 
+.badgeCategory {
+  color: var(--color-accent);
+  border-color: var(--color-accent-strong);
+}
+
 .priority {
   padding: 0.3rem 0.4rem;
   font-size: 0.75rem;

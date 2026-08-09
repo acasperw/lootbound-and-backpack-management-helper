@@ -1,0 +1,51 @@
+.editor {
+  display: inline-grid;
+  grid-template-columns: repeat(var(--size), 1.5rem);
+  grid-auto-rows: 1.5rem;
+  gap: 2px;
+  padding: 4px;
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.readOnly {
+  grid-template-columns: repeat(var(--size), 0.7rem);
+  grid-auto-rows: 0.7rem;
+  gap: 1px;
+}
+
+.readOnly .dir:hover {
+  transform: none;
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+.cell {
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.dir {
+  border-color: rgba(0, 0, 0, 0.4);
+  background: var(--color-cell-usable);
+  cursor: pointer;
+  transition: background-color 100ms ease, transform 60ms ease;
+}
+
+.dir:hover {
+  transform: scale(1.08);
+  border-color: var(--color-accent);
+}
+
+.lit {
+  background: var(--color-valid);
+  border-color: rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.45);
+}
+
+.center {
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-strong);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.4);
+}

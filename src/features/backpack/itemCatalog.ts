@@ -45,12 +45,30 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'red-hood-cloak',
     name: 'Red Hood Cloak',
-    category: 'armor',
+    categoryId: 'armor.chest',
     color: '#9b2f2a',
     weight: 3,
     value: 320,
     priority: 3,
     constraints: { allowRotation: true, edge: null },
+    buffs: [
+      {
+        id: 'red-hood-cloak-warmth',
+        target: 'armor.helmet',
+        amount: 20,
+        label: 'Warmth',
+        pattern: {
+          n: 'ray',
+          ne: 'none',
+          e: 'none',
+          se: 'none',
+          s: 'none',
+          sw: 'none',
+          w: 'none',
+          nw: 'none',
+        },
+      },
+    ],
     shape: parseShape([
       '.#.',
       '###',
@@ -60,7 +78,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'plate-armor',
     name: 'Plate Armor',
-    category: 'armor',
+    categoryId: 'armor.chest',
     color: '#8a94a6',
     weight: 8,
     value: 450,
@@ -74,7 +92,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'gnarled-staff',
     name: 'Gnarled Staff',
-    category: 'weapon',
+    categoryId: 'weapon.staff',
     color: '#7a5230',
     weight: 4,
     value: 180,
@@ -90,7 +108,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'iron-mace',
     name: 'Iron Mace',
-    category: 'weapon',
+    categoryId: 'weapon.mace',
     color: '#9aa0a8',
     weight: 6,
     value: 210,
@@ -105,7 +123,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'lute',
     name: 'Bard\u2019s Lute',
-    category: 'misc',
+    categoryId: 'weapon.instrument',
     color: '#c79a5b',
     weight: 2,
     value: 260,
@@ -119,7 +137,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'ancient-relic',
     name: 'Ancient Relic',
-    category: 'quest',
+    categoryId: 'quest',
     color: '#e0a13a',
     weight: 2,
     value: 999,

@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useBackpack } from '@/features/backpack/BackpackContext';
 import { ShapeEditor } from '@/features/backpack/ShapeEditor';
+import { BuffEditor, emptyBuffPattern } from '@/features/backpack/BuffEditor';
+import { CATEGORY_TREE } from '@/features/backpack/categories';
 import { ITEM_COLORS, PRESET_SHAPES } from '@/features/backpack/itemCatalog';
 import { isContiguous, shapeCells, trimShape } from '@/lib/grid';
 import type {
   EdgeConstraint,
-  ItemCategory,
+  ItemBuff,
   ItemDefinition,
   ShapeMatrix,
 } from '@/types/backpack';
@@ -13,13 +15,26 @@ import styles from '@/features/backpack/ItemBuilder.module.css';
 
 const EDITOR_SIZE = 6;
 const EDGES: readonly EdgeConstraint[] = ['top', 'bottom', 'left', 'right'];
-const CATEGORIES: readonly ItemCategory[] = [
-  'weapon',
-  'armor',
-  'consumable',
-  'quest',
-  'misc',
-];
+
+/** Grouped `<option>`s for a category `<select>`, reused for items and buffs. */
+function CategoryOptions(): ReactNode {
+  return CATEGORY_TREE.map((group) =>
+    group.children ? (
+      <optgroup key={group.id} label={group.label}>
+        <option value={group.id}>{`${group.label} (all)`}</option>
+        {group.children.map((leaf) => (
+          <option key={leaf.id} value={leaf.id}>
+            {leaf.label}
+          </option>
+        ))}
+      </optgroup>
+    ) : (
+      <option key={group.id} value={group.id}>
+        {group.label}
+      </option>
+    ),
+  );
+}
 
 const emptyGrid = (): boolean[][] =>
   Array.from({ length: EDITOR_SIZE }, () =>
@@ -40,17 +55,27 @@ const gridFromPreset = (shape: ShapeMatrix): boolean[][] => {
 const createId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`;
 
+/** A fresh buff aimed at all weapons, radiating one tile in every direction. */
+const createBuff = (): ItemBuff => ({
+  id: createId(),
+  target: 'weapon',
+  pattern: emptyBuffPattern(),
+  amount: 10,
+  label: '',
+});
+
 /** Form for authoring a new stash item: shape, appearance, and constraints. */
 export function ItemBuilder({ onDone }: { onDone?: () => void }) {
   const { addItem } = useBackpack();
 
   const [name, setName] = useState('');
   const [color, setColor] = useState(ITEM_COLORS[0]);
-  const [category, setCategory] = useState<ItemCategory>('misc');
+  const [categoryId, setCategoryId] = useState<string>('misc');
   const [allowRotation, setAllowRotation] = useState(true);
   const [edge, setEdge] = useState<EdgeConstraint | null>(null);
   const [priority] = useState(2);
   const [grid, setGrid] = useState<boolean[][]>(emptyGrid);
+  const [buffs, setBuffs] = useState<ItemBuff[]>([]);
 
   const cellCount = useMemo(() => shapeCells(grid).length, [grid]);
   const contiguous = useMemo(() => isContiguous(trimShape(grid)), [grid]);
@@ -60,21 +85,39 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
     setEdge((current) => (current === next ? null : next));
   };
 
+  const addBuff = () => setBuffs((current) => [...current, createBuff()]);
+
+  const updateBuff = (id: string, patch: Partial<ItemBuff>) => {
+    setBuffs((current) =>
+      current.map((buff) => (buff.id === id ? { ...buff, ...patch } : buff)),
+    );
+  };
+
+  const removeBuff = (id: string) => {
+    setBuffs((current) => current.filter((buff) => buff.id !== id));
+  };
+
   const handleAdd = () => {
     if (!canAdd) return;
+    // Drop buffs that cover no direction so they never reach the solver.
+    const activeBuffs = buffs
+      .filter((buff) => Object.values(buff.pattern).some((reach) => reach !== 'none'))
+      .map((buff) => ({ ...buff, label: buff.label?.trim() || undefined }));
     const item: ItemDefinition = {
       id: createId(),
       name: name.trim() || 'Unnamed Item',
-      category,
+      categoryId,
       color,
       priority,
       constraints: { allowRotation, edge },
       shape: trimShape(grid),
+      ...(activeBuffs.length > 0 ? { buffs: activeBuffs } : {}),
     };
     addItem(item);
     setName('');
     setEdge(null);
     setGrid(emptyGrid());
+    setBuffs([]);
     onDone?.();
   };
 
@@ -148,14 +191,10 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
           <select
             id="item-category"
             className={styles.select}
-            value={category}
-            onChange={(event) => setCategory(event.target.value as ItemCategory)}
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
           >
-            {CATEGORIES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
+            <CategoryOptions />
           </select>
         </div>
       </div>
@@ -186,6 +225,85 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className={styles.row}>
+        <div className={styles.buffsHeader}>
+          <span className={styles.label}>Buffs</span>
+          <button type="button" className={styles.chip} onClick={addBuff}>
+            + Add buff
+          </button>
+        </div>
+        {buffs.length === 0 ? (
+          <p className={styles.hint}>
+            No buffs. Add one to boost nearby items of a chosen category.
+          </p>
+        ) : (
+          <>
+            <p className={styles.hint}>
+              Strength is how hard auto-fit tries to place a matching item inside the
+              pattern.
+            </p>
+            <ul className={styles.buffList}>
+            {buffs.map((buff) => (
+              <li key={buff.id} className={styles.buff}>
+                <BuffEditor
+                  value={buff.pattern}
+                  onChange={(pattern) => updateBuff(buff.id, { pattern })}
+                />
+                <div className={styles.buffFields}>
+                  <label className={styles.buffField}>
+                    <span className={styles.label}>Affects</span>
+                    <select
+                      className={styles.select}
+                      value={buff.target}
+                      onChange={(event) =>
+                        updateBuff(buff.id, { target: event.target.value })
+                      }
+                    >
+                      <CategoryOptions />
+                    </select>
+                  </label>
+                  <label className={styles.buffField}>
+                    <span className={styles.label}>Strength</span>
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={0}
+                      title="Solver weight: how strongly to pull a matching item into this pattern."
+                      value={buff.amount}
+                      onChange={(event) =>
+                        updateBuff(buff.id, {
+                          amount: Math.max(0, Math.round(Number(event.target.value) || 0)),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className={styles.buffField}>
+                    <span className={styles.label}>Effect</span>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      placeholder="e.g. Slash Damage"
+                      value={buff.label ?? ''}
+                      onChange={(event) =>
+                        updateBuff(buff.id, { label: event.target.value })
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    onClick={() => removeBuff(buff.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
+        )}
       </div>
 
       {cellCount > 0 && !contiguous ? (

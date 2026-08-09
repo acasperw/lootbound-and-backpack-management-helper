@@ -2,6 +2,8 @@ import { useState, type CSSProperties } from 'react';
 import { useBackpack } from '@/features/backpack/BackpackContext';
 import { ItemBuilder } from '@/features/backpack/ItemBuilder';
 import { ShapePreview } from '@/features/backpack/ShapePreview';
+import { BuffBadge } from '@/features/backpack/BuffBadge';
+import { categoryPathLabel } from '@/features/backpack/categories';
 import { PRIORITY_LEVELS } from '@/features/backpack/itemCatalog';
 import type { ItemDefinition } from '@/types/backpack';
 import styles from '@/features/backpack/StashPanel.module.css';
@@ -18,12 +20,18 @@ function ItemBadges({ item }: { item: ItemDefinition }) {
   const { constraints } = item;
   return (
     <div className={styles.badges}>
+      <span className={`${styles.badge} ${styles.badgeCategory}`}>
+        {categoryPathLabel(item.categoryId)}
+      </span>
       {!constraints.allowRotation ? (
         <span className={styles.badge}>No rotate</span>
       ) : null}
       {constraints.edge ? (
         <span className={styles.badge}>{constraints.edge}</span>
       ) : null}
+      {item.buffs?.map((buff) => (
+        <BuffBadge key={buff.id} buff={buff} />
+      ))}
     </div>
   );
 }

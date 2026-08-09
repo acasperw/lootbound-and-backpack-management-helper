@@ -8,12 +8,23 @@
  * @author Backpack Helper
  */
 
-export type ItemCategory =
-  | 'weapon'
-  | 'armor'
-  | 'consumable'
-  | 'quest'
-  | 'misc';
+/**
+ * A node in the category taxonomy. Top-level nodes are groups (e.g. Weapons);
+ * their {@link CategoryNode.children} are the concrete leaf types (e.g. Hammer).
+ *
+ * Ids use dot notation so a leaf encodes its group: `'weapon.hammer'` belongs
+ * to the `'weapon'` group. This lets a buff target either a whole group
+ * (`'weapon'` → all weapons) or a single leaf (`'weapon.hammer'` → only hammers)
+ * without carrying the tree around.
+ */
+export interface CategoryNode {
+  /** Stable id: a group id (`'weapon'`) or dotted leaf id (`'weapon.hammer'`). */
+  id: string;
+  /** Human-readable label, e.g. `'Weapons'` or `'Hammer'`. */
+  label: string;
+  /** Leaf types belonging to this group, when the node is a group. */
+  children?: readonly CategoryNode[];
+}
 
 /**
  * A shape occupancy matrix in row-major order (`matrix[y][x]`).
@@ -27,6 +38,45 @@ export type Rotation = 0 | 90 | 180 | 270;
 
 /** A backpack boundary an item may be constrained to touch. */
 export type EdgeConstraint = 'top' | 'bottom' | 'left' | 'right';
+
+/** The eight compass directions a buff can radiate from its source item. */
+export type BuffDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+/**
+ * How far a buff extends in a given direction:
+ * - `'none'`  – no effect that way.
+ * - `'one'`   – only the single adjacent tile (one dot).
+ * - `'ray'`   – every tile in that direction to the grid edge (two dots).
+ */
+export type BuffReach = 'none' | 'one' | 'ray';
+
+/** Per-direction reach describing a buff's coverage around its source. */
+export type BuffPattern = Record<BuffDirection, BuffReach>;
+
+/**
+ * A positional buff an item projects onto neighbouring items of a target
+ * category. The solver will later use {@link ItemBuff.amount} to score
+ * placements that put buffed items inside {@link ItemBuff.pattern}.
+ */
+export interface ItemBuff {
+  /** Unique id for this buff within its item. */
+  id: string;
+  /**
+   * Category the buff applies to: a group id (`'weapon'` → all weapons) or a
+   * leaf id (`'weapon.hammer'` → only hammers).
+   */
+  target: string;
+  /** Directional coverage of the buff around the source item. */
+  pattern: BuffPattern;
+  /**
+   * Solver weight: how strongly auto-fit is pulled toward placing a matching
+   * item inside {@link ItemBuff.pattern}. This is a positioning weight, not the
+   * item's packing {@link ItemDefinition.priority} (which decides inclusion).
+   */
+  amount: number;
+  /** Optional flavour describing the effect, e.g. `'Slash Damage'`. */
+  label?: string;
+}
 
 /**
  * Placement rules the auto-fit solver must respect for an item.
@@ -51,7 +101,8 @@ export interface Cell {
 export interface ItemDefinition {
   id: string;
   name: string;
-  category: ItemCategory;
+  /** Taxonomy id of this item's type, e.g. `'weapon.hammer'`. */
+  categoryId: string;
   /** Base (un-rotated) occupancy shape. */
   shape: ShapeMatrix;
   /** CSS color used to render the item's cells. */
@@ -60,6 +111,8 @@ export interface ItemDefinition {
   constraints: ItemConstraints;
   /** Higher values are packed first and dropped last when space is tight. */
   priority: number;
+  /** Positional buffs this item projects onto neighbouring items. */
+  buffs?: readonly ItemBuff[];
   weight?: number;
   value?: number;
 }
