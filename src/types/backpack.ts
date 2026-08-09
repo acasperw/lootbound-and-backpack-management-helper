@@ -117,6 +117,20 @@ export interface ItemDefinition {
   value?: number;
 }
 
+/**
+ * A named inventory: its own list of item definitions plus the placements and
+ * unplaced ids produced by packing them into the backpack. Each stash packs
+ * independently of the others.
+ */
+export interface Stash {
+  id: string;
+  name: string;
+  items: ItemDefinition[];
+  placed: PlacedItem[];
+  /** Ids of items the last auto-fit could not place in this stash. */
+  unplaced: string[];
+}
+
 /** A concrete instance of an item positioned on the backpack grid. */
 export interface PlacedItem {
   /** Unique id for this placement (a definition may be placed many times). */

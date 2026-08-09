@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { useBackpack } from '@/features/backpack/BackpackContext';
+import { useBackpack } from '@/features/backpack/useBackpack';
 import { cellKey, placedItemCells, rotateShape, shapeCells } from '@/lib/grid';
 import styles from '@/features/backpack/BackpackGrid.module.css';
 

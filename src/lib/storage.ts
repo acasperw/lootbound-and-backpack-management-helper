@@ -149,3 +149,63 @@ export function saveStash(items: readonly ItemDefinition[]): void {
     // Persistence is best-effort; ignore storage errors.
   }
 }
+
+const STASHES_KEY = 'lootbound.stashes.v2';
+
+/** The persisted shape of a stash: only its identity and items are stored. */
+export interface StoredStash {
+  id: string;
+  name: string;
+  items: ItemDefinition[];
+}
+
+/** Validate and normalise a single persisted stash, or return `null` if invalid. */
+function normalizeStash(value: unknown): StoredStash | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const stash = value as Record<string, unknown>;
+  if (typeof stash.id !== 'string' || stash.id.length === 0) return null;
+  if (typeof stash.name !== 'string') return null;
+  const items = Array.isArray(stash.items)
+    ? stash.items
+        .map(normalizeItem)
+        .filter((item): item is ItemDefinition => item !== null)
+    : [];
+  return { id: stash.id, name: stash.name, items };
+}
+
+/**
+ * Load the persisted stashes. Falls back to migrating a legacy single-stash
+ * (`v1`) payload into the first stash. Returns `null` when nothing valid is
+ * stored so callers can seed their own defaults.
+ */
+export function loadStashes(): StoredStash[] | null {
+  try {
+    const raw = localStorage.getItem(STASHES_KEY);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const stashes = parsed
+          .map(normalizeStash)
+          .filter((stash): stash is StoredStash => stash !== null);
+        if (stashes.length > 0) return stashes;
+      }
+    }
+    // Migrate a legacy single stash into the first slot.
+    const legacy = loadStash();
+    if (legacy && legacy.length > 0) {
+      return [{ id: 'stash-1', name: 'Stash 1', items: legacy }];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the stashes. Failures (e.g. quota, private mode) are ignored. */
+export function saveStashes(stashes: readonly StoredStash[]): void {
+  try {
+    localStorage.setItem(STASHES_KEY, JSON.stringify(stashes));
+  } catch {
+    // Persistence is best-effort; ignore storage errors.
+  }
+}

@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react';
-import { useBackpack } from '@/features/backpack/BackpackContext';
+import { useBackpack } from '@/features/backpack/useBackpack';
 import { BackpackGrid } from '@/features/backpack/BackpackGrid';
 import { StashPanel } from '@/features/backpack/StashPanel';
+import { StashTabs } from '@/features/backpack/StashTabs';
+import { ItemEditorDrawer } from '@/features/backpack/ItemEditorDrawer';
 import { scoreBuffs } from '@/lib/solver';
 import styles from '@/features/backpack/BackpackHelper.module.css';
 
@@ -60,7 +62,10 @@ export function BackpackHelper() {
 
   return (
     <div className={styles.layout}>
-      <StashPanel />
+      <div className={styles.sidebar}>
+        <StashTabs />
+        <StashPanel />
+      </div>
 
       <div className={styles.stage}>
         <div className={styles.toolbar}>
@@ -134,6 +139,8 @@ export function BackpackHelper() {
           </div>
         </div>
       </div>
+
+      <ItemEditorDrawer />
     </div>
   );
 }

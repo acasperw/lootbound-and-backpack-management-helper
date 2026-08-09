@@ -40,10 +40,9 @@
 }
 
 .item {
-  display: grid;
-  grid-template-columns: 3rem 1fr auto auto;
-  align-items: center;
-  gap: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
   padding: 0.6rem 0.75rem;
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
@@ -63,10 +62,45 @@
 }
 
 .select {
-  display: contents;
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  inline-size: 100%;
+  padding: 0;
   text-align: start;
   background: none;
   border: none;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.action {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+}
+
+.action:hover {
+  border-color: var(--color-accent);
+}
+
+.send {
+  padding: 0.3rem 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
 }
 
 .preview {

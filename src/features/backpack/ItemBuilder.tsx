@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useBackpack } from '@/features/backpack/BackpackContext';
+import { useBackpack } from '@/features/backpack/useBackpack';
 import { ShapeEditor } from '@/features/backpack/ShapeEditor';
 import { BuffEditor, emptyBuffPattern } from '@/features/backpack/BuffEditor';
 import { CATEGORY_TREE } from '@/features/backpack/categories';
@@ -64,18 +64,31 @@ const createBuff = (): ItemBuff => ({
   label: '',
 });
 
-/** Form for authoring a new stash item: shape, appearance, and constraints. */
-export function ItemBuilder({ onDone }: { onDone?: () => void }) {
-  const { addItem } = useBackpack();
+/** Form for authoring a new stash item, or editing an existing one. */
+export function ItemBuilder({
+  item,
+  onDone,
+}: {
+  /** When provided, the form edits this item instead of adding a new one. */
+  item?: ItemDefinition;
+  onDone?: () => void;
+}) {
+  const { addItem, updateItem } = useBackpack();
 
-  const [name, setName] = useState('');
-  const [color, setColor] = useState(ITEM_COLORS[0]);
-  const [categoryId, setCategoryId] = useState<string>('misc');
-  const [allowRotation, setAllowRotation] = useState(true);
-  const [edge, setEdge] = useState<EdgeConstraint | null>(null);
-  const [priority] = useState(2);
-  const [grid, setGrid] = useState<boolean[][]>(emptyGrid);
-  const [buffs, setBuffs] = useState<ItemBuff[]>([]);
+  const [name, setName] = useState(item?.name ?? '');
+  const [color, setColor] = useState(item?.color ?? ITEM_COLORS[0]);
+  const [categoryId, setCategoryId] = useState<string>(item?.categoryId ?? 'misc');
+  const [allowRotation, setAllowRotation] = useState(
+    item?.constraints.allowRotation ?? true,
+  );
+  const [edge, setEdge] = useState<EdgeConstraint | null>(item?.constraints.edge ?? null);
+  const [priority] = useState(item?.priority ?? 2);
+  const [grid, setGrid] = useState<boolean[][]>(() =>
+    item ? gridFromPreset(item.shape) : emptyGrid(),
+  );
+  const [buffs, setBuffs] = useState<ItemBuff[]>(() =>
+    item?.buffs ? item.buffs.map((buff) => ({ ...buff })) : [],
+  );
 
   const cellCount = useMemo(() => shapeCells(grid).length, [grid]);
   const contiguous = useMemo(() => isContiguous(trimShape(grid)), [grid]);
@@ -103,17 +116,23 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
     const activeBuffs = buffs
       .filter((buff) => Object.values(buff.pattern).some((reach) => reach !== 'none'))
       .map((buff) => ({ ...buff, label: buff.label?.trim() || undefined }));
-    const item: ItemDefinition = {
-      id: createId(),
+    const nextItem: ItemDefinition = {
+      ...item,
+      id: item?.id ?? createId(),
       name: name.trim() || 'Unnamed Item',
       categoryId,
       color,
       priority,
       constraints: { allowRotation, edge },
       shape: trimShape(grid),
-      ...(activeBuffs.length > 0 ? { buffs: activeBuffs } : {}),
+      ...(activeBuffs.length > 0 ? { buffs: activeBuffs } : { buffs: undefined }),
     };
-    addItem(item);
+    if (item) {
+      updateItem(nextItem);
+      onDone?.();
+      return;
+    }
+    addItem(nextItem);
     setName('');
     setEdge(null);
     setGrid(emptyGrid());
@@ -319,7 +338,7 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
           disabled={!canAdd}
           onClick={handleAdd}
         >
-          Add to stash
+          {item ? 'Save changes' : 'Add to stash'}
         </button>
         {onDone ? (
           <button type="button" className={styles.secondary} onClick={onDone}>

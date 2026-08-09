@@ -1,6 +1,5 @@
-import { useState, type CSSProperties } from 'react';
-import { useBackpack } from '@/features/backpack/BackpackContext';
-import { ItemBuilder } from '@/features/backpack/ItemBuilder';
+import { type CSSProperties } from 'react';
+import { useBackpack } from '@/features/backpack/useBackpack';
 import { ShapePreview } from '@/features/backpack/ShapePreview';
 import { BuffBadge } from '@/features/backpack/BuffBadge';
 import { categoryPathLabel } from '@/features/backpack/categories';
@@ -37,33 +36,44 @@ function ItemBadges({ item }: { item: ItemDefinition }) {
 }
 
 /**
- * The user's stash: the list of items to pack, plus the builder for adding
- * new ones. Items are ordered by priority (highest first). Clicking an item
- * picks it up for manual placement; items the last auto-fit could not place
- * are flagged.
+ * The active stash: the list of items to pack, with per-item controls to edit,
+ * re-prioritise, send to another stash, or remove. Items are ordered by
+ * priority (highest first). Clicking an item picks it up for manual placement;
+ * items the last auto-fit could not place are flagged. Adding and editing items
+ * happen in a drawer opened from here.
  */
 export function StashPanel() {
-  const { definitions, held, unplaced, pickUpFromPalette, removeItem, setItemPriority } =
-    useBackpack();
-  const [showBuilder, setShowBuilder] = useState(false);
+  const {
+    definitions,
+    held,
+    unplaced,
+    stashes,
+    activeStashId,
+    pickUpFromPalette,
+    removeItem,
+    setItemPriority,
+    moveItemToStash,
+    openEditor,
+  } = useBackpack();
   const unplacedSet = new Set(unplaced);
   const ordered = [...definitions].sort((a, b) => b.priority - a.priority);
+  const otherStashes = stashes.filter((stash) => stash.id !== activeStashId);
+  const activeStash = stashes.find((stash) => stash.id === activeStashId);
 
   return (
     <section className={styles.panel} aria-label="Stash">
       <div className={styles.header}>
-        <h2 className={styles.heading}>Stash ({definitions.length})</h2>
+        <h2 className={styles.heading}>
+          {activeStash?.name ?? 'Stash'} ({definitions.length})
+        </h2>
         <button
           type="button"
           className={styles.addButton}
-          aria-expanded={showBuilder}
-          onClick={() => setShowBuilder((open) => !open)}
+          onClick={() => openEditor()}
         >
-          {showBuilder ? 'Close' : '+ Add item'}
+          + Add item
         </button>
       </div>
-
-      {showBuilder ? <ItemBuilder onDone={() => setShowBuilder(false)} /> : null}
 
       {definitions.length === 0 ? (
         <p className={styles.empty}>Your stash is empty. Add an item to get started.</p>
@@ -102,28 +112,59 @@ export function StashPanel() {
                     ) : null}
                   </span>
                 </button>
-                <select
-                  className={styles.priority}
-                  value={item.priority}
-                  aria-label={`Priority for ${item.name}`}
-                  onChange={(event) =>
-                    setItemPriority(item.id, Number(event.target.value))
-                  }
-                >
-                  {PRIORITY_LEVELS.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className={styles.remove}
-                  aria-label={`Remove ${item.name}`}
-                  onClick={() => removeItem(item.id)}
-                >
-                  &times;
-                </button>
+
+                <div className={styles.actions}>
+                  <select
+                    className={styles.priority}
+                    value={item.priority}
+                    aria-label={`Priority for ${item.name}`}
+                    onChange={(event) =>
+                      setItemPriority(item.id, Number(event.target.value))
+                    }
+                  >
+                    {PRIORITY_LEVELS.map((level) => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {otherStashes.length > 0 ? (
+                    <select
+                      className={styles.send}
+                      value=""
+                      aria-label={`Send ${item.name} to another stash`}
+                      onChange={(event) => {
+                        if (event.target.value) {
+                          moveItemToStash(item.id, event.target.value);
+                        }
+                      }}
+                    >
+                      <option value="">Send to&hellip;</option>
+                      {otherStashes.map((stash) => (
+                        <option key={stash.id} value={stash.id}>
+                          {stash.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className={styles.action}
+                    onClick={() => openEditor(item.id)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.remove}
+                    aria-label={`Remove ${item.name}`}
+                    onClick={() => removeItem(item.id)}
+                  >
+                    &times;
+                  </button>
+                </div>
               </li>
             );
           })}
