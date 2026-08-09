@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useBackpack } from '@/features/backpack/BackpackContext';
 import { ShapeEditor } from '@/features/backpack/ShapeEditor';
-import { ITEM_COLORS, PRESET_SHAPES, PRIORITY_LEVELS } from '@/features/backpack/itemCatalog';
+import { ITEM_COLORS, PRESET_SHAPES } from '@/features/backpack/itemCatalog';
 import { isContiguous, shapeCells, trimShape } from '@/lib/grid';
 import type {
   EdgeConstraint,
@@ -49,7 +49,7 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
   const [category, setCategory] = useState<ItemCategory>('misc');
   const [allowRotation, setAllowRotation] = useState(true);
   const [edge, setEdge] = useState<EdgeConstraint | null>(null);
-  const [priority, setPriority] = useState(2);
+  const [priority] = useState(2);
   const [grid, setGrid] = useState<boolean[][]>(emptyGrid);
 
   const cellCount = useMemo(() => shapeCells(grid).length, [grid]);
