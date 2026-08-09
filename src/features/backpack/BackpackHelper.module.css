@@ -115,6 +115,33 @@
   justify-content: center;
 }
 
+.refine {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.refineLabel {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.refineTrack {
+  block-size: 0.4rem;
+  inline-size: 100%;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.refineFill {
+  display: block;
+  block-size: 100%;
+  background: var(--color-accent);
+  transition: inline-size 120ms ease;
+}
+
 .stats {
   display: flex;
   gap: 1rem;

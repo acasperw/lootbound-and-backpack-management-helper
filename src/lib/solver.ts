@@ -233,6 +233,304 @@ function anchorRange(
 }
 
 /**
+ * A signature of the packing inputs (layout + packing-relevant item fields).
+ *
+ * Two input sets with the same signature pack identically, so a cached result
+ * can be reused instead of re-solving. Cosmetic fields (name, colour) are
+ * excluded so renaming an item does not invalidate its layout.
+ *
+ * @param config - The backpack layout.
+ * @param items - The item definitions to pack.
+ */
+export function fitSignature(
+  config: BackpackConfig,
+  items: readonly ItemDefinition[],
+): string {
+  const projected = items.map((item) => ({
+    id: item.id,
+    p: item.priority,
+    r: item.constraints.allowRotation,
+    e: item.constraints.edge,
+    c: item.categoryId,
+    s: item.shape,
+    b: item.buffs ?? [],
+  }));
+  return JSON.stringify({ g: [config.cols, config.rows, config.mask], i: projected });
+}
+
+/** Iterations for the fast, main-thread refinement done inside {@link solve}. */
+export const STAGE1_ITERATIONS = 12_500;
+
+/** Fixed length of each annealing restart; the restart count scales with iterations. */
+const ITERATIONS_PER_RESTART = 12_500;
+
+/** Options controlling a {@link refine} run. */
+export interface RefineOptions {
+  /**
+   * Total annealing steps. Split into fixed-length restarts, so a larger value
+   * runs strictly more restarts than a smaller one — the kept-best result is
+   * therefore monotonic: more iterations never lowers the score.
+   */
+  iterations?: number;
+  /** Seed for the deterministic PRNG; different seeds explore differently. */
+  seed?: number;
+  /** Called with a 0–1 fraction as the run progresses. */
+  onProgress?: (fraction: number) => void;
+}
+
+/** Outcome of a {@link refine} run. */
+export interface RefineResult {
+  placements: PlacedItem[];
+  /** Total buff score of the returned placements. */
+  buffScore: number;
+}
+
+/**
+ * Improve a packing's adjacency-buff score by seeded simulated annealing.
+ *
+ * Inclusion (which items are placed) is fixed: only positions and orientations
+ * move, so the priority-optimal packing is never undone. Buff score is
+ * maximised with a top-left gravity cost as a sub-unit tie-break. The returned
+ * layout is never worse than the input. A no-op when no item projects a buff.
+ *
+ * @param config - The backpack layout.
+ * @param items - The item definitions (used to resolve buffs and orientations).
+ * @param placements - The starting placements to polish.
+ * @param options - Iteration count, seed and progress callback.
+ */
+export function refine(
+  config: BackpackConfig,
+  items: readonly ItemDefinition[],
+  placements: readonly PlacedItem[],
+  options: RefineOptions = {},
+): RefineResult {
+  const { cols, rows } = config;
+  const iterations = options.iterations ?? STAGE1_ITERATIONS;
+  const prepared = items.map(prepareItem);
+  const byId = new Map(prepared.map((item) => [item.id, item] as const));
+  const hasBuffs = prepared.some((item) => item.buffs.length > 0);
+
+  interface Slot {
+    item: PreparedItem;
+    oi: number;
+    ax: number;
+    ay: number;
+    cells: Array<{ x: number; y: number }>;
+  }
+  const slots: Slot[] = [];
+  for (const placement of placements) {
+    const item = byId.get(placement.definitionId);
+    if (!item) continue;
+    const oi = Math.max(
+      0,
+      item.orientations.findIndex((o) => o.rotation === placement.rotation),
+    );
+    const orientation = item.orientations[oi];
+    slots.push({
+      item,
+      oi,
+      ax: placement.x,
+      ay: placement.y,
+      cells: orientation.offsets.map(({ dx, dy }) => ({
+        x: placement.x + dx,
+        y: placement.y + dy,
+      })),
+    });
+  }
+
+  // Stable slot order (by id) so the seeded RNG's iteration→item mapping does
+  // not depend on placement or priority order: a buff-neutral priority change
+  // then can't perturb the annealing trajectory.
+  slots.sort((a, b) => (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0));
+
+  const actor = (slot: Slot): BuffActor => ({
+    categoryId: slot.item.categoryId,
+    buffs: slot.item.buffs,
+    cells: slot.cells,
+  });
+  // Buff of all pairs involving slot `i` (each such pair counted once).
+  const contribution = (i: number): number => {
+    const a = actor(slots[i]);
+    let sum = 0;
+    for (let j = 0; j < slots.length; j += 1) {
+      if (j === i) continue;
+      sum += directedBuff(a, actor(slots[j])) + directedBuff(actor(slots[j]), a);
+    }
+    return sum;
+  };
+
+  let totalBuff = 0;
+  for (let i = 0; i < slots.length; i += 1) totalBuff += contribution(i);
+  totalBuff /= 2; // each unordered pair is counted from both endpoints
+
+  if (!hasBuffs || slots.length < 2) {
+    options.onProgress?.(1);
+    return { placements: placements.slice(), buffScore: totalBuff };
+  }
+
+  const usable = new Uint8Array(cols * rows);
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      if (config.mask[y]?.[x]) usable[y * cols + x] = 1;
+    }
+  }
+  const rocc = new Uint8Array(cols * rows);
+  for (const slot of slots) {
+    for (const { x, y } of slot.cells) rocc[y * cols + x] = 1;
+  }
+
+  const cellsCost = (cells: ReadonlyArray<{ x: number; y: number }>): number =>
+    cells.reduce((total, { x, y }) => total + y * cols + x, 0);
+  let totalCost = slots.reduce((sum, slot) => sum + cellsCost(slot.cells), 0);
+
+  // Cost is a sub-unit tie-break so it never outranks an integer buff gain.
+  const totalCells = slots.reduce((n, slot) => n + slot.cells.length, 0);
+  const costEps = 1 / (rows * cols * totalCells + 1);
+  const energy = (buff: number, cost: number): number => -buff + costEps * cost;
+
+  // Snapshot the starting layout so every restart begins from the same place.
+  const initialPos = slots.map((slot) => ({ oi: slot.oi, ax: slot.ax, ay: slot.ay }));
+  const applyPositions = (
+    pos: ReadonlyArray<{ oi: number; ax: number; ay: number }>,
+  ): void => {
+    rocc.fill(0);
+    for (let k = 0; k < slots.length; k += 1) {
+      const slot = slots[k];
+      const { oi, ax, ay } = pos[k];
+      slot.oi = oi;
+      slot.ax = ax;
+      slot.ay = ay;
+      slot.cells = slot.item.orientations[oi].offsets.map(({ dx, dy }) => ({
+        x: ax + dx,
+        y: ay + dy,
+      }));
+      for (const { x, y } of slot.cells) rocc[y * cols + x] = 1;
+    }
+    let buff = 0;
+    for (let i = 0; i < slots.length; i += 1) buff += contribution(i);
+    totalBuff = buff / 2;
+    totalCost = slots.reduce((sum, slot) => sum + cellsCost(slot.cells), 0);
+  };
+
+  const maxAmount = Math.max(
+    1,
+    ...prepared.flatMap((item) => item.buffs.map((buff) => buff.amount)),
+  );
+
+  let bestEnergy = energy(totalBuff, totalCost);
+  let bestBuff = totalBuff;
+  const bestPos = slots.map((slot) => ({ oi: slot.oi, ax: slot.ax, ay: slot.ay }));
+
+  // Fixed-length restarts (identical across runs) so more iterations = more
+  // restarts = a strict superset of exploration, hence a monotonic kept-best.
+  const perRestart = ITERATIONS_PER_RESTART;
+  const restarts = Math.max(1, Math.round(iterations / perRestart));
+  const totalSteps = restarts * perRestart;
+  const progressStep = Math.max(1, Math.floor(totalSteps / 100));
+  let step = 0;
+
+  for (let r = 0; r < restarts; r += 1) {
+    // Each restart explores a fresh trajectory from the same starting layout.
+    if (r > 0) applyPositions(initialPos);
+
+    let seed = ((options.seed ?? 0x9e3779b9) + Math.imul(r + 1, 0x9e3779b9)) >>> 0;
+    const rnd = (): number => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const randInt = (n: number): number => Math.floor(rnd() * n);
+
+    const coolRate = (0.05 / maxAmount) ** (1 / perRestart);
+    let temperature = maxAmount;
+
+    for (
+      let iter = 0;
+      iter < perRestart;
+      iter += 1, temperature *= coolRate, step += 1
+    ) {
+      if (step % progressStep === 0) options.onProgress?.(step / totalSteps);
+
+      const i = randInt(slots.length);
+      const slot = slots[i];
+      const noi = randInt(slot.item.orientations.length);
+      const orientation = slot.item.orientations[noi];
+      const range = anchorRange(orientation, slot.item.edge, config);
+      if (!range) continue;
+
+      const nax = range.minX + randInt(range.maxX - range.minX + 1);
+      const nay = range.minY + randInt(range.maxY - range.minY + 1);
+
+      // Vacate this item, then test the candidate cells against everything else.
+      for (const { x, y } of slot.cells) rocc[y * cols + x] = 0;
+      const nextCells: Array<{ x: number; y: number }> = [];
+      let ok = true;
+      for (const { dx, dy } of orientation.offsets) {
+        const x = nax + dx;
+        const y = nay + dy;
+        const idx = y * cols + x;
+        if (usable[idx] === 0 || rocc[idx] === 1) {
+          ok = false;
+          break;
+        }
+        nextCells.push({ x, y });
+      }
+      if (!ok) {
+        for (const { x, y } of slot.cells) rocc[y * cols + x] = 1;
+        continue;
+      }
+
+      const oldContrib = contribution(i);
+      const oldCost = cellsCost(slot.cells);
+      const saved = { cells: slot.cells, oi: slot.oi, ax: slot.ax, ay: slot.ay };
+      slot.cells = nextCells;
+      slot.oi = noi;
+      slot.ax = nax;
+      slot.ay = nay;
+      const nextBuff = totalBuff + (contribution(i) - oldContrib);
+      const nextCost = totalCost + (cellsCost(nextCells) - oldCost);
+      const delta = energy(nextBuff, nextCost) - energy(totalBuff, totalCost);
+
+      if (delta <= 0 || rnd() < Math.exp(-delta / temperature)) {
+        for (const { x, y } of nextCells) rocc[y * cols + x] = 1;
+        totalBuff = nextBuff;
+        totalCost = nextCost;
+        const currentEnergy = energy(totalBuff, totalCost);
+        if (currentEnergy < bestEnergy) {
+          bestEnergy = currentEnergy;
+          bestBuff = totalBuff;
+          for (let k = 0; k < slots.length; k += 1) {
+            bestPos[k].oi = slots[k].oi;
+            bestPos[k].ax = slots[k].ax;
+            bestPos[k].ay = slots[k].ay;
+          }
+        }
+      } else {
+        slot.cells = saved.cells;
+        slot.oi = saved.oi;
+        slot.ax = saved.ax;
+        slot.ay = saved.ay;
+        for (const { x, y } of saved.cells) rocc[y * cols + x] = 1;
+      }
+    }
+  }
+  options.onProgress?.(1);
+
+  return {
+    placements: slots.map((slot, k) => ({
+      instanceId: slot.item.id,
+      definitionId: slot.item.id,
+      x: bestPos[k].ax,
+      y: bestPos[k].ay,
+      rotation: slot.item.orientations[bestPos[k].oi].rotation,
+    })),
+    buffScore: bestBuff,
+  };
+}
+
+/**
  * Pack items into the backpack.
  *
  * The search maximises total placed **priority** first (so high-priority items
@@ -355,7 +653,7 @@ export function solve(
     }
   };
 
-  const dfs = (
+  const searchFrom = (
     index: number,
     placedPriority: number,
     buff: number,
@@ -432,7 +730,7 @@ export function solve(
       });
       placedCells.push(entry);
 
-      dfs(index + 1, placedPriority + item.priority, buff + gainedBuff, cost + placeCost);
+      searchFrom(index + 1, placedPriority + item.priority, buff + gainedBuff, cost + placeCost);
 
       placedCells.pop();
       current.pop();
@@ -440,185 +738,15 @@ export function solve(
     }
 
     // Try leaving this item unplaced as well.
-    dfs(index + 1, placedPriority, buff, cost);
+    searchFrom(index + 1, placedPriority, buff, cost);
   };
 
-  dfs(0, 0, 0, 0);
+  searchFrom(0, 0, 0, 0);
 
-  /**
-   * Polish the constructive solution with seeded simulated annealing on buff
-   * score. Inclusion (which items are placed) is fixed; only positions and
-   * orientations move, so it never undoes the priority-optimal packing. It is a
-   * no-op when no item projects a buff.
-   */
-  const refineBuffs = (placements: readonly PlacedItem[]): PlacedItem[] => {
-    if (placements.length < 2 || !prepared.some((item) => item.buffs.length > 0)) {
-      return placements.slice();
-    }
-
-    const byId = new Map(prepared.map((item) => [item.id, item] as const));
-
-    interface Slot {
-      item: PreparedItem;
-      oi: number;
-      ax: number;
-      ay: number;
-      cells: Array<{ x: number; y: number }>;
-    }
-    const slots: Slot[] = [];
-    for (const placement of placements) {
-      const item = byId.get(placement.definitionId);
-      if (!item) return placements.slice();
-      const oi = Math.max(
-        0,
-        item.orientations.findIndex((o) => o.rotation === placement.rotation),
-      );
-      const orientation = item.orientations[oi];
-      slots.push({
-        item,
-        oi,
-        ax: placement.x,
-        ay: placement.y,
-        cells: orientation.offsets.map(({ dx, dy }) => ({
-          x: placement.x + dx,
-          y: placement.y + dy,
-        })),
-      });
-    }
-
-    const rocc = new Uint8Array(cols * rows);
-    for (const slot of slots) {
-      for (const { x, y } of slot.cells) rocc[y * cols + x] = 1;
-    }
-
-    const actor = (slot: Slot): BuffActor => ({
-      categoryId: slot.item.categoryId,
-      buffs: slot.item.buffs,
-      cells: slot.cells,
-    });
-
-    // Buff of all pairs involving slot `i` (each such pair counted once).
-    const contribution = (i: number): number => {
-      const a = actor(slots[i]);
-      let sum = 0;
-      for (let j = 0; j < slots.length; j += 1) {
-        if (j === i) continue;
-        const b = actor(slots[j]);
-        sum += directedBuff(a, b) + directedBuff(b, a);
-      }
-      return sum;
-    };
-    const cellsCost = (cells: ReadonlyArray<{ x: number; y: number }>): number =>
-      cells.reduce((total, { x, y }) => total + y * cols + x, 0);
-
-    let totalBuff = 0;
-    for (let i = 0; i < slots.length; i += 1) totalBuff += contribution(i);
-    totalBuff /= 2; // each unordered pair is counted from both endpoints
-    let totalCost = slots.reduce((sum, slot) => sum + cellsCost(slot.cells), 0);
-
-    // Cost is a sub-unit tie-break so it never outranks an integer buff gain.
-    const totalCells = slots.reduce((n, slot) => n + slot.cells.length, 0);
-    const costEps = 1 / (rows * cols * totalCells + 1);
-    const energy = (buff: number, cost: number): number => -buff + costEps * cost;
-
-    let bestEnergy = energy(totalBuff, totalCost);
-    const bestPos = slots.map((slot) => ({ oi: slot.oi, ax: slot.ax, ay: slot.ay }));
-
-    // Deterministic PRNG (mulberry32) so results are stable between runs.
-    let seed = (0x9e3779b9 ^ slots.length) >>> 0;
-    const rnd = (): number => {
-      seed = (seed + 0x6d2b79f5) >>> 0;
-      let t = seed;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    const randInt = (n: number): number => Math.floor(rnd() * n);
-
-    const maxAmount = Math.max(
-      1,
-      ...prepared.flatMap((item) => item.buffs.map((buff) => buff.amount)),
-    );
-    const ITERATIONS = 20000;
-    const coolRate = (0.05 / maxAmount) ** (1 / ITERATIONS);
-    let temperature = maxAmount;
-
-    for (let iter = 0; iter < ITERATIONS; iter += 1, temperature *= coolRate) {
-      const i = randInt(slots.length);
-      const slot = slots[i];
-      const noi = randInt(slot.item.orientations.length);
-      const orientation = slot.item.orientations[noi];
-      const range = anchorRange(orientation, slot.item.edge, config);
-      if (!range) continue;
-
-      const nax = range.minX + randInt(range.maxX - range.minX + 1);
-      const nay = range.minY + randInt(range.maxY - range.minY + 1);
-
-      // Vacate this item, then test the candidate cells against everything else.
-      for (const { x, y } of slot.cells) rocc[y * cols + x] = 0;
-      const nextCells: Array<{ x: number; y: number }> = [];
-      let ok = true;
-      for (const { dx, dy } of orientation.offsets) {
-        const x = nax + dx;
-        const y = nay + dy;
-        const idx = y * cols + x;
-        if (usable[idx] === 0 || rocc[idx] === 1) {
-          ok = false;
-          break;
-        }
-        nextCells.push({ x, y });
-      }
-      if (!ok) {
-        for (const { x, y } of slot.cells) rocc[y * cols + x] = 1;
-        continue;
-      }
-
-      const oldContrib = contribution(i);
-      const oldCost = cellsCost(slot.cells);
-      const saved = { cells: slot.cells, oi: slot.oi, ax: slot.ax, ay: slot.ay };
-      slot.cells = nextCells;
-      slot.oi = noi;
-      slot.ax = nax;
-      slot.ay = nay;
-      const newContrib = contribution(i);
-      const newCost = cellsCost(nextCells);
-
-      const nextBuff = totalBuff + (newContrib - oldContrib);
-      const nextCost = totalCost + (newCost - oldCost);
-      const delta = energy(nextBuff, nextCost) - energy(totalBuff, totalCost);
-
-      if (delta <= 0 || rnd() < Math.exp(-delta / temperature)) {
-        for (const { x, y } of nextCells) rocc[y * cols + x] = 1;
-        totalBuff = nextBuff;
-        totalCost = nextCost;
-        const currentEnergy = energy(totalBuff, totalCost);
-        if (currentEnergy < bestEnergy) {
-          bestEnergy = currentEnergy;
-          for (let k = 0; k < slots.length; k += 1) {
-            bestPos[k].oi = slots[k].oi;
-            bestPos[k].ax = slots[k].ax;
-            bestPos[k].ay = slots[k].ay;
-          }
-        }
-      } else {
-        slot.cells = saved.cells;
-        slot.oi = saved.oi;
-        slot.ax = saved.ax;
-        slot.ay = saved.ay;
-        for (const { x, y } of saved.cells) rocc[y * cols + x] = 1;
-      }
-    }
-
-    return slots.map((slot, k) => ({
-      instanceId: slot.item.id,
-      definitionId: slot.item.id,
-      x: bestPos[k].ax,
-      y: bestPos[k].ay,
-      rotation: slot.item.orientations[bestPos[k].oi].rotation,
-    }));
-  };
-
-  const finalPlacements = refineBuffs(best.placements);
+  // Fast on-thread polish; a worker can refine further from this result.
+  const finalPlacements = refine(config, items, best.placements, {
+    iterations: STAGE1_ITERATIONS,
+  }).placements;
 
   const placedIds = new Set(finalPlacements.map((placement) => placement.instanceId));
   const unplaced = prepared

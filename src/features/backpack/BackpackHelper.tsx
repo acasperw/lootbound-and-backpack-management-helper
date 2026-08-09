@@ -23,6 +23,7 @@ export function BackpackHelper() {
     unplaced,
     autoFit,
     clearPlacements,
+    refineProgress,
     rotateHeld,
     returnHeld,
     reset,
@@ -102,6 +103,7 @@ export function BackpackHelper() {
           </p>
         ) : null}
 
+
         {held ? (
           <div className={styles.manual}>
             <span className={styles.held}>
@@ -117,6 +119,27 @@ export function BackpackHelper() {
         ) : null}
 
         <BackpackGrid />
+
+        {refineProgress !== null ? (
+          <div
+            className={styles.refine}
+            role="progressbar"
+            aria-label="Optimizing buff placement"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(refineProgress * 100)}
+          >
+            <span className={styles.refineLabel}>
+              Optimizing buffs… {Math.round(refineProgress * 100)}%
+            </span>
+            <span className={styles.refineTrack}>
+              <span
+                className={styles.refineFill}
+                style={{ inlineSize: `${Math.round(refineProgress * 100)}%` }}
+              />
+            </span>
+          </div>
+        ) : null}
 
         <div className={styles.stats} role="group" aria-label="Backpack usage">
           <div className={styles.stat}>

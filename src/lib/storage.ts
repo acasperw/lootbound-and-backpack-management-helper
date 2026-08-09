@@ -14,12 +14,15 @@ import type {
   EdgeConstraint,
   ItemBuff,
   ItemDefinition,
+  PlacedItem,
+  Rotation,
   ShapeMatrix,
 } from '@/types/backpack';
 
 const STORAGE_KEY = 'lootbound.stash.v1';
 
 const EDGES: readonly EdgeConstraint[] = ['top', 'bottom', 'left', 'right'];
+const ROTATIONS: readonly Rotation[] = [0, 90, 180, 270];
 const BUFF_DIRECTIONS: readonly BuffDirection[] = [
   'n',
   'ne',
@@ -152,11 +155,35 @@ export function saveStash(items: readonly ItemDefinition[]): void {
 
 const STASHES_KEY = 'lootbound.stashes.v2';
 
-/** The persisted shape of a stash: only its identity and items are stored. */
+/** Validate a persisted placement, or return `null` when malformed. */
+function normalizePlacement(value: unknown): PlacedItem | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const item = value as Record<string, unknown>;
+  if (typeof item.instanceId !== 'string' || item.instanceId.length === 0) return null;
+  if (typeof item.definitionId !== 'string' || item.definitionId.length === 0) return null;
+  if (typeof item.x !== 'number' || !Number.isFinite(item.x)) return null;
+  if (typeof item.y !== 'number' || !Number.isFinite(item.y)) return null;
+  if (typeof item.rotation !== 'number' || !ROTATIONS.includes(item.rotation as Rotation)) {
+    return null;
+  }
+  return {
+    instanceId: item.instanceId,
+    definitionId: item.definitionId,
+    x: Math.round(item.x),
+    y: Math.round(item.y),
+    rotation: item.rotation as Rotation,
+  };
+}
+
+/** The persisted shape of a stash: identity, items and the cached packing. */
 export interface StoredStash {
   id: string;
   name: string;
   items: ItemDefinition[];
+  placed: PlacedItem[];
+  unplaced: string[];
+  /** Signature of the items {@link StoredStash.placed} was packed for. */
+  fitFingerprint?: string;
 }
 
 /** Validate and normalise a single persisted stash, or return `null` if invalid. */
@@ -170,7 +197,17 @@ function normalizeStash(value: unknown): StoredStash | null {
         .map(normalizeItem)
         .filter((item): item is ItemDefinition => item !== null)
     : [];
-  return { id: stash.id, name: stash.name, items };
+  const placed = Array.isArray(stash.placed)
+    ? stash.placed
+        .map(normalizePlacement)
+        .filter((item): item is PlacedItem => item !== null)
+    : [];
+  const unplaced = Array.isArray(stash.unplaced)
+    ? stash.unplaced.filter((id): id is string => typeof id === 'string')
+    : [];
+  const fitFingerprint =
+    typeof stash.fitFingerprint === 'string' ? stash.fitFingerprint : undefined;
+  return { id: stash.id, name: stash.name, items, placed, unplaced, fitFingerprint };
 }
 
 /**
@@ -193,7 +230,9 @@ export function loadStashes(): StoredStash[] | null {
     // Migrate a legacy single stash into the first slot.
     const legacy = loadStash();
     if (legacy && legacy.length > 0) {
-      return [{ id: 'stash-1', name: 'Stash 1', items: legacy }];
+      return [
+        { id: 'stash-1', name: 'Stash 1', items: legacy, placed: [], unplaced: [] },
+      ];
     }
     return null;
   } catch {

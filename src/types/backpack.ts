@@ -129,6 +129,8 @@ export interface Stash {
   placed: PlacedItem[];
   /** Ids of items the last auto-fit could not place in this stash. */
   unplaced: string[];
+  /** Signature of the items the current {@link Stash.placed} was packed for. */
+  fitFingerprint?: string;
 }
 
 /** A concrete instance of an item positioned on the backpack grid. */

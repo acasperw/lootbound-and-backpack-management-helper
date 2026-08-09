@@ -55,6 +55,8 @@ export interface BackpackContextValue {
   autoFit: () => void;
   /** Clear all placements without touching the stash. */
   clearPlacements: () => void;
+  /** Background refinement progress (0–1), or `null` when idle/finished. */
+  refineProgress: number | null;
 
   /** Whether the add/edit drawer is open. */
   editorOpen: boolean;

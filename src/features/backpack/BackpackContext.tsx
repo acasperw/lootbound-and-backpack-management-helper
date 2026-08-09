@@ -2,13 +2,19 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { buildOccupancy, rotateShape, canPlaceShape } from '@/lib/grid';
-import { solve } from '@/lib/solver';
+import { solve, scoreBuffs, fitSignature } from '@/lib/solver';
 import { loadStashes, saveStashes } from '@/lib/storage';
 import { DEFAULT_BACKPACK, STARTER_STASH } from '@/features/backpack/itemCatalog';
+import RefineWorker from '@/features/backpack/refineWorker?worker';
+import type {
+  RefineRequest,
+  RefineResponse,
+} from '@/features/backpack/refineWorker';
 import {
   BackpackContext,
   type BackpackContextValue,
@@ -18,6 +24,7 @@ import {
 import type {
   BackpackConfig,
   ItemDefinition,
+  PlacedItem,
   Rotation,
   Stash,
 } from '@/types/backpack';
@@ -45,8 +52,9 @@ function initStashes(): Stash[] {
       id: source?.id ?? `stash-${index + 1}`,
       name,
       items,
-      placed: [],
-      unplaced: [],
+      placed: source?.placed ?? [],
+      unplaced: source?.unplaced ?? [],
+      fitFingerprint: source?.fitFingerprint,
     };
   });
 }
@@ -65,10 +73,23 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
     open: false,
     itemId: null,
   });
+  const [refineProgress, setRefineProgress] = useState<number | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const runIdRef = useRef(0);
 
-  // Persist the stashes so they survive a page refresh (items only).
+  // Persist the stashes (items and the cached packing) so a refresh restores
+  // the last computed layout instead of recalculating it.
   useEffect(() => {
-    saveStashes(stashes.map(({ id, name, items }) => ({ id, name, items })));
+    saveStashes(
+      stashes.map(({ id, name, items, placed, unplaced, fitFingerprint }) => ({
+        id,
+        name,
+        items,
+        placed,
+        unplaced,
+        fitFingerprint,
+      })),
+    );
   }, [stashes]);
 
   const activeStash = useMemo(
@@ -175,21 +196,85 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
     [patchActive],
   );
 
-  const autoFit = useCallback(() => {
-    setStashes((current) =>
-      current.map((stash) => {
-        if (stash.id !== activeStashId) return stash;
-        const result = solve(config, stash.items);
-        return { ...stash, placed: result.placements, unplaced: result.unplaced };
-      }),
-    );
-    setHeld(null);
-  }, [config, activeStashId]);
+  /**
+   * Continue polishing buff score off the main thread, adopting the worker's
+   * layout only when it beats the on-thread result. Skipped when no item buffs.
+   */
+  const startDeepRefine = useCallback(
+    (placements: readonly PlacedItem[]) => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
 
-  // Re-pack the active stash whenever its items change or the active stash switches.
+      const hasBuffs = definitions.some((item) => (item.buffs?.length ?? 0) > 0);
+      if (!hasBuffs || placements.length < 2) {
+        setRefineProgress(null);
+        return;
+      }
+
+      const runId = (runIdRef.current += 1);
+      const stashId = activeStashId;
+      const baseline = scoreBuffs(placements, definitionsById);
+      const worker = new RefineWorker();
+      workerRef.current = worker;
+      setRefineProgress(0);
+
+      worker.onmessage = (event: MessageEvent<RefineResponse>) => {
+        if (runId !== runIdRef.current) return;
+        const message = event.data;
+        if (message.type === 'progress') {
+          setRefineProgress(message.value);
+          return;
+        }
+        if (message.buffScore > baseline) {
+          setStashes((current) =>
+            current.map((stash) =>
+              stash.id === stashId ? { ...stash, placed: message.placements } : stash,
+            ),
+          );
+        }
+        setRefineProgress(null);
+        worker.terminate();
+        if (workerRef.current === worker) workerRef.current = null;
+      };
+
+      worker.postMessage({
+        config,
+        items: definitions as ItemDefinition[],
+        placements: placements as PlacedItem[],
+        iterations: 25_000_000,
+        seed: 0x1234abcd,
+      } satisfies RefineRequest);
+    },
+    [config, definitions, definitionsById, activeStashId],
+  );
+
+  const autoFit = useCallback(() => {
+    const result = solve(config, definitions);
+    const signature = fitSignature(config, definitions);
+    patchActive(() => ({
+      placed: result.placements,
+      unplaced: result.unplaced,
+      fitFingerprint: signature,
+    }));
+    setHeld(null);
+    startDeepRefine(result.placements);
+  }, [config, definitions, patchActive, startDeepRefine]);
+
+  // Signature of the active stash's current packing inputs.
+  const currentSignature = useMemo(
+    () => fitSignature(config, definitions),
+    [config, definitions],
+  );
+
+  // Re-pack only when the inputs differ from the cached layout, so a refresh
+  // (or stash switch) with a matching signature keeps the stored result.
   useEffect(() => {
+    if (activeStash.fitFingerprint === currentSignature) return;
     autoFit();
-  }, [autoFit, definitions]);
+  }, [activeStash.fitFingerprint, currentSignature, autoFit]);
+
+  // Stop any running worker when the provider unmounts.
+  useEffect(() => () => workerRef.current?.terminate(), []);
 
   const clearPlacements = useCallback(
     () => patchActive(() => ({ placed: [], unplaced: [] })),
@@ -313,6 +398,7 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       setItemPriority,
       autoFit,
       clearPlacements,
+      refineProgress,
       editorOpen: editor.open,
       editorItem,
       openEditor,
@@ -344,6 +430,7 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       setItemPriority,
       autoFit,
       clearPlacements,
+      refineProgress,
       editor.open,
       editorItem,
       openEditor,
