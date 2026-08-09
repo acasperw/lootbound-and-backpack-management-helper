@@ -2,7 +2,7 @@ node_modules
 dist
 dist-ssr
 *.local
-*.tsbuildinfo
+tsconfig.tsbuildinfo
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
