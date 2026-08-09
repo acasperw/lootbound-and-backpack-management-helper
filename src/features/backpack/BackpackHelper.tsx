@@ -1,7 +1,10 @@
 import { useEffect, useMemo } from 'react';
-import { useBackpack } from '@/features/backpack/BackpackContext';
+import { useBackpack } from '@/features/backpack/useBackpack';
 import { BackpackGrid } from '@/features/backpack/BackpackGrid';
 import { StashPanel } from '@/features/backpack/StashPanel';
+import { StashTabs } from '@/features/backpack/StashTabs';
+import { ItemEditorDrawer } from '@/features/backpack/ItemEditorDrawer';
+import { scoreBuffs } from '@/lib/solver';
 import styles from '@/features/backpack/BackpackHelper.module.css';
 
 /**
@@ -52,9 +55,17 @@ export function BackpackHelper() {
 
   const usedPercent = usableCells === 0 ? 0 : Math.round((filledCells / usableCells) * 100);
 
+  const buffScore = useMemo(
+    () => scoreBuffs(placed, definitionsById),
+    [placed, definitionsById],
+  );
+
   return (
     <div className={styles.layout}>
-      <StashPanel />
+      <div className={styles.sidebar}>
+        <StashTabs />
+        <StashPanel />
+      </div>
 
       <div className={styles.stage}>
         <div className={styles.toolbar}>
@@ -122,8 +133,14 @@ export function BackpackHelper() {
             <span className={styles.statValue}>{usedPercent}%</span>
             <span className={styles.statLabel}>Full</span>
           </div>
+          <div className={styles.stat}>
+            <span className={styles.statValue}>+{buffScore}</span>
+            <span className={styles.statLabel}>Buff score</span>
+          </div>
         </div>
       </div>
+
+      <ItemEditorDrawer />
     </div>
   );
 }

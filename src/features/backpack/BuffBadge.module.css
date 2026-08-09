@@ -1,0 +1,55 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  color: #1a1206;
+  background: var(--color-valid);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+  cursor: default;
+}
+
+.card {
+  position: absolute;
+  inset-block-end: calc(100% + 0.4rem);
+  inset-inline-start: 0;
+  z-index: 10;
+  display: none;
+  flex-direction: column;
+  gap: 0.4rem;
+  inline-size: max-content;
+  max-inline-size: 14rem;
+  padding: 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.wrap:hover .card,
+.wrap:focus-within .card {
+  display: flex;
+}
+
+.affects {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.affects strong {
+  color: var(--color-text);
+}
+
+.effect {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-valid);
+}

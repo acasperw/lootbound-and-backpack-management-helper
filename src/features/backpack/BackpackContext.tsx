@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -9,60 +7,20 @@ import {
 } from 'react';
 import { buildOccupancy, rotateShape, canPlaceShape } from '@/lib/grid';
 import { solve } from '@/lib/solver';
-import { loadStash, saveStash } from '@/lib/storage';
+import { loadStashes, saveStashes } from '@/lib/storage';
 import { DEFAULT_BACKPACK, STARTER_STASH } from '@/features/backpack/itemCatalog';
+import {
+  BackpackContext,
+  type BackpackContextValue,
+  type HeldItem,
+  type StashSummary,
+} from '@/features/backpack/useBackpack';
 import type {
   BackpackConfig,
   ItemDefinition,
-  PlacedItem,
   Rotation,
+  Stash,
 } from '@/types/backpack';
-
-/** An item currently "in hand", awaiting placement on the grid. */
-export interface HeldItem {
-  /** Where the held item came from. */
-  source: 'palette' | 'placed';
-  /** Preserved instance id when moving an already-placed item. */
-  instanceId: string;
-  definitionId: string;
-  rotation: Rotation;
-}
-
-export interface BackpackContextValue {
-  config: BackpackConfig;
-  definitions: readonly ItemDefinition[];
-  definitionsById: ReadonlyMap<string, ItemDefinition>;
-  placed: readonly PlacedItem[];
-  /** Cell key → occupying instance id, derived from {@link placed}. */
-  occupancy: ReadonlyMap<string, string>;
-  held: HeldItem | null;
-  /** Ids of stash items the last auto-fit could not place. */
-  unplaced: readonly string[];
-
-  addItem: (item: ItemDefinition) => void;
-  removeItem: (id: string) => void;
-  /** Change an item's packing priority. */
-  setItemPriority: (id: string, priority: number) => void;
-  /** Run the auto-fit solver and apply the resulting placements. */
-  autoFit: () => void;
-  /** Clear all placements without touching the stash. */
-  clearPlacements: () => void;
-
-  pickUpFromPalette: (definitionId: string) => void;
-  pickUpPlaced: (instanceId: string) => void;
-  rotateHeld: () => void;
-  /** Attempt to place the held item; returns whether placement succeeded. */
-  placeAt: (x: number, y: number) => boolean;
-  returnHeld: () => void;
-  removePlaced: (instanceId: string) => void;
-  /** Restore the full default state: starter stash, empty grid, nothing held. */
-  reset: () => void;
-
-  /** Whether the held item can currently be placed at the given anchor. */
-  canPlaceHeldAt: (x: number, y: number) => boolean;
-}
-
-const BackpackContext = createContext<BackpackContextValue | null>(null);
 
 const nextRotation = (rotation: Rotation): Rotation =>
   (((rotation + 90) % 360) as Rotation);
@@ -70,23 +28,57 @@ const nextRotation = (rotation: Rotation): Rotation =>
 const createInstanceId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`;
 
+/** Fixed names for the three stashes. */
+const STASH_NAMES = ['Stash 1', 'Stash 2', 'Stash 3'] as const;
+
+/** Seed the three stashes from storage, falling back to the starter stash. */
+function initStashes(): Stash[] {
+  const stored = loadStashes();
+  return STASH_NAMES.map((name, index) => {
+    const source = stored?.[index];
+    const items = source
+      ? [...source.items]
+      : index === 0 && !stored
+        ? [...STARTER_STASH]
+        : [];
+    return {
+      id: source?.id ?? `stash-${index + 1}`,
+      name,
+      items,
+      placed: [],
+      unplaced: [],
+    };
+  });
+}
+
 /**
- * Provides backpack state (layout, placed items, held item) and the actions
- * that mutate it. Consumed via the {@link useBackpack} hook.
+ * Provides backpack state (three stashes, the active grid, held item, and the
+ * add/edit drawer) and the actions that mutate it. Consumed via the
+ * {@link useBackpack} hook.
  */
 export function BackpackProvider({ children }: { children: ReactNode }) {
   const [config] = useState<BackpackConfig>(DEFAULT_BACKPACK);
-  const [definitions, setDefinitions] = useState<ItemDefinition[]>(
-    () => loadStash() ?? [...STARTER_STASH],
-  );
-  const [placed, setPlaced] = useState<PlacedItem[]>([]);
+  const [stashes, setStashes] = useState<Stash[]>(initStashes);
+  const [activeStashId, setActiveStashId] = useState<string>(() => stashes[0].id);
   const [held, setHeld] = useState<HeldItem | null>(null);
-  const [unplaced, setUnplaced] = useState<string[]>([]);
+  const [editor, setEditor] = useState<{ open: boolean; itemId: string | null }>({
+    open: false,
+    itemId: null,
+  });
 
-  // Persist the stash so it survives a page refresh.
+  // Persist the stashes so they survive a page refresh (items only).
   useEffect(() => {
-    saveStash(definitions);
-  }, [definitions]);
+    saveStashes(stashes.map(({ id, name, items }) => ({ id, name, items })));
+  }, [stashes]);
+
+  const activeStash = useMemo(
+    () => stashes.find((stash) => stash.id === activeStashId) ?? stashes[0],
+    [stashes, activeStashId],
+  );
+
+  const definitions = activeStash.items;
+  const placed = activeStash.placed;
+  const unplaced = activeStash.unplaced;
 
   const definitionsById = useMemo(
     () => new Map(definitions.map((definition) => [definition.id, definition])),
@@ -98,39 +90,123 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
     [placed, definitionsById],
   );
 
-  const addItem = useCallback((item: ItemDefinition) => {
-    setDefinitions((current) => [...current, item]);
+  /** Apply a shallow patch to the active stash, leaving the others untouched. */
+  const patchActive = useCallback(
+    (patch: (stash: Stash) => Partial<Stash>) =>
+      setStashes((current) =>
+        current.map((stash) =>
+          stash.id === activeStashId ? { ...stash, ...patch(stash) } : stash,
+        ),
+      ),
+    [activeStashId],
+  );
+
+  const stashSummaries = useMemo<StashSummary[]>(
+    () => stashes.map(({ id, name, items }) => ({ id, name, itemCount: items.length })),
+    [stashes],
+  );
+
+  const setActiveStash = useCallback((id: string) => {
+    setActiveStashId(id);
+    setHeld(null);
   }, []);
 
-  const removeItem = useCallback((id: string) => {
-    setDefinitions((current) => current.filter((item) => item.id !== id));
-    setPlaced((current) => current.filter((item) => item.definitionId !== id));
-    setUnplaced((current) => current.filter((itemId) => itemId !== id));
-    setHeld((current) => (current?.definitionId === id ? null : current));
-  }, []);
+  const moveItemToStash = useCallback(
+    (itemId: string, targetStashId: string) => {
+      if (targetStashId === activeStashId) return;
+      setStashes((current) => {
+        const source = current.find((stash) => stash.id === activeStashId);
+        const item = source?.items.find((candidate) => candidate.id === itemId);
+        if (!item) return current;
+        return current.map((stash) => {
+          if (stash.id === activeStashId) {
+            return {
+              ...stash,
+              items: stash.items.filter((candidate) => candidate.id !== itemId),
+              placed: stash.placed.filter((entry) => entry.definitionId !== itemId),
+              unplaced: stash.unplaced.filter((id) => id !== itemId),
+            };
+          }
+          if (stash.id === targetStashId) {
+            return { ...stash, items: [...stash.items, item] };
+          }
+          return stash;
+        });
+      });
+      setHeld((current) => (current?.definitionId === itemId ? null : current));
+    },
+    [activeStashId],
+  );
 
-  const setItemPriority = useCallback((id: string, priority: number) => {
-    setDefinitions((current) =>
-      current.map((item) => (item.id === id ? { ...item, priority } : item)),
-    );
-  }, []);
+  const addItem = useCallback(
+    (item: ItemDefinition) => patchActive((stash) => ({ items: [...stash.items, item] })),
+    [patchActive],
+  );
+
+  const updateItem = useCallback(
+    (item: ItemDefinition) =>
+      patchActive((stash) => ({
+        items: stash.items.map((candidate) =>
+          candidate.id === item.id ? item : candidate,
+        ),
+      })),
+    [patchActive],
+  );
+
+  const removeItem = useCallback(
+    (id: string) => {
+      patchActive((stash) => ({
+        items: stash.items.filter((item) => item.id !== id),
+        placed: stash.placed.filter((item) => item.definitionId !== id),
+        unplaced: stash.unplaced.filter((itemId) => itemId !== id),
+      }));
+      setHeld((current) => (current?.definitionId === id ? null : current));
+    },
+    [patchActive],
+  );
+
+  const setItemPriority = useCallback(
+    (id: string, priority: number) =>
+      patchActive((stash) => ({
+        items: stash.items.map((item) =>
+          item.id === id ? { ...item, priority } : item,
+        ),
+      })),
+    [patchActive],
+  );
 
   const autoFit = useCallback(() => {
-    const result = solve(config, definitions);
-    setPlaced(result.placements);
-    setUnplaced(result.unplaced);
+    setStashes((current) =>
+      current.map((stash) => {
+        if (stash.id !== activeStashId) return stash;
+        const result = solve(config, stash.items);
+        return { ...stash, placed: result.placements, unplaced: result.unplaced };
+      }),
+    );
     setHeld(null);
-  }, [config, definitions]);
+  }, [config, activeStashId]);
 
-  // Re-pack automatically whenever the stash or layout changes.
+  // Re-pack the active stash whenever its items change or the active stash switches.
   useEffect(() => {
     autoFit();
-  }, [autoFit]);
+  }, [autoFit, definitions]);
 
-  const clearPlacements = useCallback(() => {
-    setPlaced([]);
-    setUnplaced([]);
-  }, []);
+  const clearPlacements = useCallback(
+    () => patchActive(() => ({ placed: [], unplaced: [] })),
+    [patchActive],
+  );
+
+  const openEditor = useCallback(
+    (itemId?: string) => setEditor({ open: true, itemId: itemId ?? null }),
+    [],
+  );
+
+  const closeEditor = useCallback(() => setEditor({ open: false, itemId: null }), []);
+
+  const editorItem = useMemo(
+    () => (editor.itemId ? definitionsById.get(editor.itemId) ?? null : null),
+    [editor.itemId, definitionsById],
+  );
 
   const pickUpFromPalette = useCallback((definitionId: string) => {
     setHeld({
@@ -141,21 +217,28 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const pickUpPlaced = useCallback((instanceId: string) => {
-    setPlaced((current) => {
-      const target = current.find((item) => item.instanceId === instanceId);
-      if (target) {
-        setHeld({
-          source: 'placed',
-          instanceId: target.instanceId,
-          definitionId: target.definitionId,
-          rotation: target.rotation,
-        });
-        return current.filter((item) => item.instanceId !== instanceId);
-      }
-      return current;
-    });
-  }, []);
+  const pickUpPlaced = useCallback(
+    (instanceId: string) => {
+      setStashes((current) =>
+        current.map((stash) => {
+          if (stash.id !== activeStashId) return stash;
+          const target = stash.placed.find((item) => item.instanceId === instanceId);
+          if (!target) return stash;
+          setHeld({
+            source: 'placed',
+            instanceId: target.instanceId,
+            definitionId: target.definitionId,
+            rotation: target.rotation,
+          });
+          return {
+            ...stash,
+            placed: stash.placed.filter((item) => item.instanceId !== instanceId),
+          };
+        }),
+      );
+    },
+    [activeStashId],
+  );
 
   const rotateHeld = useCallback(() => {
     setHeld((current) =>
@@ -177,34 +260,39 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
   const placeAt = useCallback(
     (x: number, y: number): boolean => {
       if (!held || !canPlaceHeldAt(x, y)) return false;
-      setPlaced((current) => [
-        ...current,
-        {
-          instanceId: held.instanceId,
-          definitionId: held.definitionId,
-          x,
-          y,
-          rotation: held.rotation,
-        },
-      ]);
+      const heldItem = held;
+      patchActive((stash) => ({
+        placed: [
+          ...stash.placed,
+          {
+            instanceId: heldItem.instanceId,
+            definitionId: heldItem.definitionId,
+            x,
+            y,
+            rotation: heldItem.rotation,
+          },
+        ],
+      }));
       setHeld(null);
       return true;
     },
-    [held, canPlaceHeldAt],
+    [held, canPlaceHeldAt, patchActive],
   );
 
   const returnHeld = useCallback(() => setHeld(null), []);
 
-  const removePlaced = useCallback((instanceId: string) => {
-    setPlaced((current) => current.filter((item) => item.instanceId !== instanceId));
-  }, []);
+  const removePlaced = useCallback(
+    (instanceId: string) =>
+      patchActive((stash) => ({
+        placed: stash.placed.filter((item) => item.instanceId !== instanceId),
+      })),
+    [patchActive],
+  );
 
   const reset = useCallback(() => {
-    setDefinitions([]);
-    setPlaced([]);
+    patchActive(() => ({ items: [], placed: [], unplaced: [] }));
     setHeld(null);
-    setUnplaced([]);
-  }, []);
+  }, [patchActive]);
 
   const value = useMemo<BackpackContextValue>(
     () => ({
@@ -215,11 +303,20 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       occupancy,
       held,
       unplaced,
+      stashes: stashSummaries,
+      activeStashId,
+      setActiveStash,
+      moveItemToStash,
       addItem,
+      updateItem,
       removeItem,
       setItemPriority,
       autoFit,
       clearPlacements,
+      editorOpen: editor.open,
+      editorItem,
+      openEditor,
+      closeEditor,
       pickUpFromPalette,
       pickUpPlaced,
       rotateHeld,
@@ -237,11 +334,20 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       occupancy,
       held,
       unplaced,
+      stashSummaries,
+      activeStashId,
+      setActiveStash,
+      moveItemToStash,
       addItem,
+      updateItem,
       removeItem,
       setItemPriority,
       autoFit,
       clearPlacements,
+      editor.open,
+      editorItem,
+      openEditor,
+      closeEditor,
       pickUpFromPalette,
       pickUpPlaced,
       rotateHeld,
@@ -254,13 +360,4 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
   );
 
   return <BackpackContext value={value}>{children}</BackpackContext>;
-}
-
-/** Access backpack state and actions. Must be used within a provider. */
-export function useBackpack(): BackpackContextValue {
-  const context = useContext(BackpackContext);
-  if (!context) {
-    throw new Error('useBackpack must be used within a <BackpackProvider>.');
-  }
-  return context;
 }
