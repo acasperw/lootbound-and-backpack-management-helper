@@ -3,15 +3,14 @@ import { useBackpack } from '@/features/backpack/BackpackContext';
 import { ItemBuilder } from '@/features/backpack/ItemBuilder';
 import { ShapePreview } from '@/features/backpack/ShapePreview';
 import { PRIORITY_LEVELS } from '@/features/backpack/itemCatalog';
-import type { ItemDefinition, ItemRarity } from '@/types/backpack';
+import type { ItemDefinition } from '@/types/backpack';
 import styles from '@/features/backpack/StashPanel.module.css';
 
-const RARITY_VAR: Record<ItemRarity, string> = {
-  common: 'var(--rarity-common)',
-  uncommon: 'var(--rarity-uncommon)',
-  rare: 'var(--rarity-rare)',
-  epic: 'var(--rarity-epic)',
-  legendary: 'var(--rarity-legendary)',
+/** Accent color for the stash item's leading border, keyed by priority. */
+const PRIORITY_VAR: Record<number, string> = {
+  3: 'var(--priority-high)',
+  2: 'var(--priority-medium)',
+  1: 'var(--priority-low)',
 };
 
 /** Renders the constraint pills for a single stash item. */
@@ -19,7 +18,6 @@ function ItemBadges({ item }: { item: ItemDefinition }) {
   const { constraints } = item;
   return (
     <div className={styles.badges}>
-      <span className={styles.badge}>{item.rarity}</span>
       {!constraints.allowRotation ? (
         <span className={styles.badge}>No rotate</span>
       ) : null}
@@ -75,7 +73,7 @@ export function StashPanel() {
               <li
                 key={item.id}
                 className={classNames.join(' ')}
-                style={{ '--rarity-color': RARITY_VAR[item.rarity] } as CSSProperties}
+                style={{ '--priority-color': PRIORITY_VAR[item.priority] } as CSSProperties}
               >
                 <button
                   type="button"

@@ -15,13 +15,6 @@ export type ItemCategory =
   | 'quest'
   | 'misc';
 
-export type ItemRarity =
-  | 'common'
-  | 'uncommon'
-  | 'rare'
-  | 'epic'
-  | 'legendary';
-
 /**
  * A shape occupancy matrix in row-major order (`matrix[y][x]`).
  * `true` marks a filled cell; `false` marks empty space within the
@@ -59,7 +52,6 @@ export interface ItemDefinition {
   id: string;
   name: string;
   category: ItemCategory;
-  rarity: ItemRarity;
   /** Base (un-rotated) occupancy shape. */
   shape: ShapeMatrix;
   /** CSS color used to render the item's cells. */

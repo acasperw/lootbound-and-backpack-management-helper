@@ -113,18 +113,21 @@ export function BackpackGrid() {
   // different item, empty space, or a disabled cell.
   const cellEdgeShadow = (x: number, y: number, occupant: CellState): string => {
     const parts: string[] = [];
-    const sides: Array<{ dx: number; dy: number; fill: string; edge: string }> = [
-      { dx: 1, dy: 0, fill: `2px 0 0 0`, edge: `inset -2px 0 0 0` },
-      { dx: -1, dy: 0, fill: `-2px 0 0 0`, edge: `inset 2px 0 0 0` },
-      { dx: 0, dy: 1, fill: `0 2px 0 0`, edge: `inset 0 -2px 0 0` },
-      { dx: 0, dy: -1, fill: `0 -2px 0 0`, edge: `inset 0 2px 0 0` },
+    // Bottom/right edges take the dark shadow, top/left take the light rim, so
+    // each item reads as a raised, chiseled block instead of a flat outline.
+    const sides: Array<{ dx: number; dy: number; fill: string; edge: string; tone: 'dark' | 'light' }> = [
+      { dx: 1, dy: 0, fill: `2px 0 0 0`, edge: `inset -2px 0 0 0`, tone: 'dark' },
+      { dx: -1, dy: 0, fill: `-2px 0 0 0`, edge: `inset 2px 0 0 0`, tone: 'light' },
+      { dx: 0, dy: 1, fill: `0 2px 0 0`, edge: `inset 0 -2px 0 0`, tone: 'dark' },
+      { dx: 0, dy: -1, fill: `0 -2px 0 0`, edge: `inset 0 2px 0 0`, tone: 'light' },
     ];
     for (const side of sides) {
       const neighbor = occupiedCells.get(cellKey(x + side.dx, y + side.dy));
       if (neighbor?.instanceId === occupant.instanceId) {
         parts.push(`${side.fill} ${occupant.color}`);
       } else {
-        parts.push(`${side.edge} var(--color-item-outline)`);
+        const color = side.tone === 'dark' ? 'var(--color-item-outline)' : 'var(--color-item-rim)';
+        parts.push(`${side.edge} ${color}`);
       }
     }
     return parts.join(', ');

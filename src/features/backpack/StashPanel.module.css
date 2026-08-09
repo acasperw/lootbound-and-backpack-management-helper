@@ -47,7 +47,7 @@
   padding: 0.6rem 0.75rem;
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
-  border-inline-start: 3px solid var(--rarity-color, var(--color-border-strong));
+  border-inline-start: 3px solid var(--priority-color, var(--color-border-strong));
   border-radius: var(--radius);
   transition: background-color 120ms ease, border-color 120ms ease;
 }

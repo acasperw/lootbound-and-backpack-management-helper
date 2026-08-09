@@ -13,6 +13,7 @@
   border: 1px solid rgba(0, 0, 0, 0.4);
   border-radius: 3px;
   background: var(--color-cell-usable);
+  touch-action: none;
   transition: background-color 100ms ease, transform 60ms ease;
 }
 

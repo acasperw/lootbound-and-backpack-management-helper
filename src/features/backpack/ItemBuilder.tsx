@@ -7,12 +7,11 @@ import type {
   EdgeConstraint,
   ItemCategory,
   ItemDefinition,
-  ItemRarity,
   ShapeMatrix,
 } from '@/types/backpack';
 import styles from '@/features/backpack/ItemBuilder.module.css';
 
-const EDITOR_SIZE = 5;
+const EDITOR_SIZE = 6;
 const EDGES: readonly EdgeConstraint[] = ['top', 'bottom', 'left', 'right'];
 const CATEGORIES: readonly ItemCategory[] = [
   'weapon',
@@ -20,13 +19,6 @@ const CATEGORIES: readonly ItemCategory[] = [
   'consumable',
   'quest',
   'misc',
-];
-const RARITIES: readonly ItemRarity[] = [
-  'common',
-  'uncommon',
-  'rare',
-  'epic',
-  'legendary',
 ];
 
 const emptyGrid = (): boolean[][] =>
@@ -55,7 +47,6 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState(ITEM_COLORS[0]);
   const [category, setCategory] = useState<ItemCategory>('misc');
-  const [rarity, setRarity] = useState<ItemRarity>('common');
   const [allowRotation, setAllowRotation] = useState(true);
   const [edge, setEdge] = useState<EdgeConstraint | null>(null);
   const [priority, setPriority] = useState(2);
@@ -75,7 +66,6 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
       id: createId(),
       name: name.trim() || 'Unnamed Item',
       category,
-      rarity,
       color,
       priority,
       constraints: { allowRotation, edge },
@@ -164,40 +154,6 @@ export function ItemBuilder({ onDone }: { onDone?: () => void }) {
             {CATEGORIES.map((value) => (
               <option key={value} value={value}>
                 {value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.row}>
-          <label className={styles.label} htmlFor="item-rarity">
-            Rarity
-          </label>
-          <select
-            id="item-rarity"
-            className={styles.select}
-            value={rarity}
-            onChange={(event) => setRarity(event.target.value as ItemRarity)}
-          >
-            {RARITIES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.row}>
-          <label className={styles.label} htmlFor="item-priority">
-            Priority
-          </label>
-          <select
-            id="item-priority"
-            className={styles.select}
-            value={priority}
-            onChange={(event) => setPriority(Number(event.target.value))}
-          >
-            {PRIORITY_LEVELS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
               </option>
             ))}
           </select>

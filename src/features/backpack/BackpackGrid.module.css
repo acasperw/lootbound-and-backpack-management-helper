@@ -18,7 +18,10 @@
   background: var(--color-border);
   padding: 2px;
   border-radius: calc(var(--radius) - 0.25rem);
-  --color-item-outline: rgba(0, 0, 0, 0.85);
+  /* Warm dark shadow + light rim give placed items a chiseled, raised look
+     that separates same-colored neighbors while matching the gritty theme. */
+  --color-item-outline: rgba(9, 6, 3, 0.9);
+  --color-item-rim: rgba(255, 236, 200, 0.28);
 }
 
 .cell {

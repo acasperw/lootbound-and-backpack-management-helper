@@ -53,7 +53,6 @@ function normalizeItem(value: unknown): ItemDefinition | null {
     id: item.id,
     name: item.name,
     category: (item.category as ItemDefinition['category']) ?? 'misc',
-    rarity: (item.rarity as ItemDefinition['rarity']) ?? 'common',
     color: item.color,
     priority: normalizePriority(item.priority),
     constraints: { allowRotation: constraints.allowRotation, edge },
