@@ -55,6 +55,7 @@ export interface BackpackContextValue {
   placeAt: (x: number, y: number) => boolean;
   returnHeld: () => void;
   removePlaced: (instanceId: string) => void;
+  /** Restore the full default state: starter stash, empty grid, nothing held. */
   reset: () => void;
 
   /** Whether the held item can currently be placed at the given anchor. */
@@ -199,6 +200,7 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reset = useCallback(() => {
+    setDefinitions([]);
     setPlaced([]);
     setHeld(null);
     setUnplaced([]);

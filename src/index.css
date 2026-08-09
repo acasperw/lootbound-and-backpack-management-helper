@@ -19,12 +19,10 @@
   --color-invalid: #b8453f;
   --color-invalid-soft: rgba(184, 69, 63, 0.35);
 
-  /* Rarity */
-  --rarity-common: #b8b0a2;
-  --rarity-uncommon: #5fae62;
-  --rarity-rare: #4f8cd6;
-  --rarity-epic: #a465d6;
-  --rarity-legendary: #e0a13a;
+  /* Priority accent (stash item border) */
+  --priority-high: #e0a13a;
+  --priority-medium: #6f9bd1;
+  --priority-low: #8a94a6;
 
   /* Metrics */
   --cell-size: 3rem;
