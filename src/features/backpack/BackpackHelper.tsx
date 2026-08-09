@@ -78,7 +78,7 @@ export function BackpackHelper() {
             type="button"
             className={styles.button}
             onClick={reset}
-            title="Restore the starter stash and clear the grid"
+            title="Reset the stash and clear the grid"
           >
             Reset
           </button>

@@ -14,7 +14,7 @@ export const PRESET_SHAPES: ReadonlyArray<{ id: string; name: string; shape: Sha
   { id: 'line3', name: '1\u00d73', shape: parseShape(['#', '#', '#']) },
   { id: 'square', name: '2\u00d72', shape: parseShape(['##', '##']) },
   { id: 'rect', name: '2\u00d73', shape: parseShape(['###', '###']) },
-  { id: 'plus', name: 'Plus', shape: parseShape(['.#.', '###', '.#.']) },
+  { id: 'tshape', name: 'T', shape: parseShape(['###', '.#.']) },
 ];
 
 /** Colors offered when creating a new stash item. */
