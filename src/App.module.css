@@ -11,9 +11,11 @@
 
 .title {
   margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3.2vw, 2.5rem);
+  font-weight: 700;
   color: var(--color-accent-strong);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .subtitle {

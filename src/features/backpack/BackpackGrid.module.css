@@ -63,15 +63,19 @@
 
 .label {
   position: absolute;
-  left: calc(2px + (var(--label-x) + 0.5) * (var(--cell-size) + 2px));
-  top: calc(2px + (var(--label-y) + 0.5) * (var(--cell-size) + 2px));
-  max-inline-size: calc(var(--label-width) * (var(--cell-size) + 2px) - 4px);
-  transform: translate(-50%, -50%);
-  padding: 0 2px;
+  left: calc(2px + var(--label-x) * (var(--cell-size) + 2px));
+  top: calc(2px + var(--label-y) * (var(--cell-size) + 2px));
+  inline-size: calc(var(--label-width) * (var(--cell-size) + 2px) - 2px);
+  block-size: calc(var(--label-height) * (var(--cell-size) + 2px) - 2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 3px;
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1.05;
   text-align: center;
+  overflow: hidden;
   overflow-wrap: anywhere;
   hyphens: auto;
   text-shadow:

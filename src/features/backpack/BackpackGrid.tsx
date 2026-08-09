@@ -13,11 +13,12 @@ interface InstanceLabel {
   instanceId: string;
   name: string;
   color: string;
-  /** Cell the label is centered on (nearest filled cell to the centroid). */
-  anchorX: number;
-  anchorY: number;
-  /** Bounding-box width in cells, used to give the text room to wrap. */
+  /** Top-left corner of the item's bounding box, in cells. */
+  minX: number;
+  minY: number;
+  /** Bounding-box size in cells; the label fills and centers within it. */
   width: number;
+  height: number;
 }
 
 /** Pick a readable text color (black/white) for a given hex/CSS color. */
@@ -74,8 +75,8 @@ export function BackpackGrid() {
     return map;
   }, [placed, definitionsById, occupancy]);
 
-  // Compute one label per placed item, anchored to the filled cell nearest the
-  // item's centroid so the name always sits over the item (e.g. L/T shapes).
+  // Compute one label per placed item. The label fills the item's bounding box
+  // and centers its text, so the name always stays within the item's footprint.
   const instanceLabels = useMemo(() => {
     const labels: InstanceLabel[] = [];
     for (const item of placed) {
@@ -85,24 +86,16 @@ export function BackpackGrid() {
       if (cells.length === 0) continue;
       const xs = cells.map((c) => c.x);
       const ys = cells.map((c) => c.y);
-      const centroidX = xs.reduce((a, b) => a + b, 0) / cells.length;
-      const centroidY = ys.reduce((a, b) => a + b, 0) / cells.length;
-      let anchor = cells[0];
-      let best = Infinity;
-      for (const cell of cells) {
-        const dist = (cell.x - centroidX) ** 2 + (cell.y - centroidY) ** 2;
-        if (dist < best) {
-          best = dist;
-          anchor = cell;
-        }
-      }
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
       labels.push({
         instanceId: item.instanceId,
         name: definition.name,
         color: definition.color,
-        anchorX: anchor.x,
-        anchorY: anchor.y,
-        width: Math.max(...xs) - Math.min(...xs) + 1,
+        minX,
+        minY,
+        width: Math.max(...xs) - minX + 1,
+        height: Math.max(...ys) - minY + 1,
       });
     }
     return labels;
@@ -224,9 +217,10 @@ export function BackpackGrid() {
               className={styles.label}
               style={
                 {
-                  '--label-x': item.anchorX,
-                  '--label-y': item.anchorY,
+                  '--label-x': item.minX,
+                  '--label-y': item.minY,
                   '--label-width': item.width,
+                  '--label-height': item.height,
                   color: readableTextColor(item.color),
                 } as CSSProperties
               }

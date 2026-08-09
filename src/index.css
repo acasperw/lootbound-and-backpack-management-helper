@@ -28,8 +28,12 @@
   --cell-size: 3rem;
   --radius: 0.5rem;
 
+  /* Typography */
+  --font-display: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
+  --font-body: 'Marcellus', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
   color-scheme: dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
 }
 
 *,
