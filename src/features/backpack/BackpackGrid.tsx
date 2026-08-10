@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useBackpack } from '@/features/backpack/useBackpack';
 import { cellKey, placedItemCells, rotateShape, shapeCells } from '@/lib/grid';
+import { trackEvent } from '@/lib/analytics';
 import styles from '@/features/backpack/BackpackGrid.module.css';
 
 interface CellState {
@@ -141,11 +142,13 @@ export function BackpackGrid() {
   const handleActivate = (x: number, y: number) => {
     const key = cellKey(x, y);
     if (held) {
+      if (canPlaceHeldAt(x, y)) trackEvent('place_item', { source: held.source });
       placeAt(x, y);
       return;
     }
     const occupant = occupiedCells.get(key);
     if (occupant) {
+      trackEvent('pick_up_placed');
       pickUpPlaced(occupant.instanceId);
     }
   };

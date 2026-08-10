@@ -11,6 +11,7 @@ import type {
   ItemDefinition,
   ShapeMatrix,
 } from '@/types/backpack';
+import { trackEvent } from '@/lib/analytics';
 import styles from '@/features/backpack/ItemBuilder.module.css';
 
 const EDITOR_SIZE = 6;
@@ -128,10 +129,12 @@ export function ItemBuilder({
       ...(activeBuffs.length > 0 ? { buffs: activeBuffs } : { buffs: undefined }),
     };
     if (item) {
+      trackEvent('save_item', { mode: 'edit', category_id: categoryId });
       updateItem(nextItem);
       onDone?.();
       return;
     }
+    trackEvent('save_item', { mode: 'add', category_id: categoryId });
     addItem(nextItem);
     setName('');
     setEdge(null);

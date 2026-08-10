@@ -1,4 +1,5 @@
 import { useBackpack } from '@/features/backpack/useBackpack';
+import { trackEvent } from '@/lib/analytics';
 import styles from '@/features/backpack/StashTabs.module.css';
 
 /**
@@ -20,7 +21,10 @@ export function StashTabs() {
             role="tab"
             aria-selected={isActive}
             className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
-            onClick={() => setActiveStash(stash.id)}
+            onClick={() => {
+              if (!isActive) trackEvent('switch_stash', { stash_id: stash.id });
+              setActiveStash(stash.id);
+            }}
           >
             <span className={styles.name}>{stash.name}</span>
             <span className={styles.count}>{stash.itemCount}</span>

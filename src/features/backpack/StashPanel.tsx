@@ -4,6 +4,7 @@ import { ShapePreview } from '@/features/backpack/ShapePreview';
 import { BuffBadge } from '@/features/backpack/BuffBadge';
 import { categoryPathLabel } from '@/features/backpack/categories';
 import { PRIORITY_LEVELS } from '@/features/backpack/itemCatalog';
+import { trackEvent } from '@/lib/analytics';
 import type { ItemDefinition } from '@/types/backpack';
 import styles from '@/features/backpack/StashPanel.module.css';
 
@@ -69,7 +70,10 @@ export function StashPanel() {
         <button
           type="button"
           className={styles.addButton}
-          onClick={() => openEditor()}
+          onClick={() => {
+            trackEvent('open_item_editor', { mode: 'add' });
+            openEditor();
+          }}
         >
           + Add item
         </button>
@@ -97,7 +101,10 @@ export function StashPanel() {
                   type="button"
                   className={styles.select}
                   aria-pressed={isActive}
-                  onClick={() => pickUpFromPalette(item.id)}
+                  onClick={() => {
+                    trackEvent('pick_up_item', { category_id: item.categoryId });
+                    pickUpFromPalette(item.id);
+                  }}
                 >
                   <span className={styles.preview}>
                     <ShapePreview shape={item.shape} color={item.color} />
@@ -118,9 +125,12 @@ export function StashPanel() {
                     className={styles.priority}
                     value={item.priority}
                     aria-label={`Priority for ${item.name}`}
-                    onChange={(event) =>
-                      setItemPriority(item.id, Number(event.target.value))
-                    }
+                    onChange={(event) => {
+                      trackEvent('set_item_priority', {
+                        priority: Number(event.target.value),
+                      });
+                      setItemPriority(item.id, Number(event.target.value));
+                    }}
                   >
                     {PRIORITY_LEVELS.map((level) => (
                       <option key={level.value} value={level.value}>
@@ -136,6 +146,9 @@ export function StashPanel() {
                       aria-label={`Send ${item.name} to another stash`}
                       onChange={(event) => {
                         if (event.target.value) {
+                          trackEvent('move_item_to_stash', {
+                            target_stash_id: event.target.value,
+                          });
                           moveItemToStash(item.id, event.target.value);
                         }
                       }}
@@ -152,7 +165,10 @@ export function StashPanel() {
                   <button
                     type="button"
                     className={styles.action}
-                    onClick={() => openEditor(item.id)}
+                    onClick={() => {
+                      trackEvent('open_item_editor', { mode: 'edit' });
+                      openEditor(item.id);
+                    }}
                   >
                     Edit
                   </button>
@@ -160,7 +176,10 @@ export function StashPanel() {
                     type="button"
                     className={styles.remove}
                     aria-label={`Remove ${item.name}`}
-                    onClick={() => removeItem(item.id)}
+                    onClick={() => {
+                      trackEvent('remove_item', { category_id: item.categoryId });
+                      removeItem(item.id);
+                    }}
                   >
                     &times;
                   </button>

@@ -5,6 +5,7 @@ import { StashPanel } from '@/features/backpack/StashPanel';
 import { StashTabs } from '@/features/backpack/StashTabs';
 import { ItemEditorDrawer } from '@/features/backpack/ItemEditorDrawer';
 import { scoreBuffs } from '@/lib/solver';
+import { trackEvent } from '@/lib/analytics';
 import styles from '@/features/backpack/BackpackHelper.module.css';
 
 /**
@@ -73,7 +74,10 @@ export function BackpackHelper() {
           <button
             type="button"
             className={styles.primary}
-            onClick={autoFit}
+            onClick={() => {
+              trackEvent('auto_fit', { item_count: definitions.length });
+              autoFit();
+            }}
             disabled={definitions.length === 0}
           >
             Auto-fit stash
@@ -81,7 +85,10 @@ export function BackpackHelper() {
           <button
             type="button"
             className={styles.button}
-            onClick={clearPlacements}
+            onClick={() => {
+              trackEvent('clear_grid', { placed_count: placed.length });
+              clearPlacements();
+            }}
             disabled={placed.length === 0}
           >
             Clear grid
@@ -89,7 +96,10 @@ export function BackpackHelper() {
           <button
             type="button"
             className={styles.button}
-            onClick={reset}
+            onClick={() => {
+              trackEvent('reset');
+              reset();
+            }}
             title="Reset the stash and clear the grid"
           >
             Reset
@@ -109,10 +119,24 @@ export function BackpackHelper() {
             <span className={styles.held}>
               Holding: <strong>{heldName}</strong> ({held.rotation}&deg;)
             </span>
-            <button type="button" className={styles.button} onClick={rotateHeld}>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => {
+                trackEvent('rotate_held');
+                rotateHeld();
+              }}
+            >
               Rotate (R)
             </button>
-            <button type="button" className={styles.button} onClick={returnHeld}>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => {
+                trackEvent('cancel_held');
+                returnHeld();
+              }}
+            >
               Cancel (Esc)
             </button>
           </div>
