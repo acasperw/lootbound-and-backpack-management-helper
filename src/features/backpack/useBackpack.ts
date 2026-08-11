@@ -75,6 +75,8 @@ export interface BackpackContextValue {
   removePlaced: (instanceId: string) => void;
   /** Restore the active stash to empty: no items, empty grid, nothing held. */
   reset: () => void;
+  /** Replace the backpack layout (size and usable-cell mask). */
+  updateBackpackConfig: (config: BackpackConfig) => void;
 
   /** Whether the held item can currently be placed at the given anchor. */
   canPlaceHeldAt: (x: number, y: number) => boolean;

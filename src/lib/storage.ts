@@ -8,6 +8,7 @@
  */
 
 import type {
+  BackpackConfig,
   BuffDirection,
   BuffPattern,
   BuffReach,
@@ -18,6 +19,7 @@ import type {
   Rotation,
   ShapeMatrix,
 } from '@/types/backpack';
+import { isContiguous, MAX_GRID_SIZE } from '@/lib/grid';
 
 const STORAGE_KEY = 'lootbound.stash.v1';
 
@@ -244,6 +246,56 @@ export function loadStashes(): StoredStash[] | null {
 export function saveStashes(stashes: readonly StoredStash[]): void {
   try {
     localStorage.setItem(STASHES_KEY, JSON.stringify(stashes));
+  } catch {
+    // Persistence is best-effort; ignore storage errors.
+  }
+}
+
+const CONFIG_KEY = 'lootbound.backpack.v1';
+
+/**
+ * Validate and normalise a persisted backpack config, or return `null` when
+ * malformed. A valid config is 1–{@link MAX_GRID_SIZE} cells per axis with a
+ * matching, non-empty, contiguous mask.
+ */
+function normalizeConfig(value: unknown): BackpackConfig | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const source = value as Record<string, unknown>;
+
+  const cols = source.cols;
+  const rows = source.rows;
+  if (typeof cols !== 'number' || !Number.isInteger(cols)) return null;
+  if (typeof rows !== 'number' || !Number.isInteger(rows)) return null;
+  if (cols < 1 || cols > MAX_GRID_SIZE || rows < 1 || rows > MAX_GRID_SIZE) return null;
+
+  if (!Array.isArray(source.mask) || source.mask.length !== rows) return null;
+  const mask: boolean[][] = [];
+  for (const row of source.mask) {
+    if (!Array.isArray(row) || row.length !== cols) return null;
+    if (!row.every((cell) => typeof cell === 'boolean')) return null;
+    mask.push([...(row as boolean[])]);
+  }
+
+  if (!isContiguous(mask)) return null;
+
+  return { cols, rows, mask };
+}
+
+/** Load the persisted backpack config, or `null` when nothing valid is stored. */
+export function loadConfig(): BackpackConfig | null {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (!raw) return null;
+    return normalizeConfig(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the backpack config. Failures (e.g. quota, private mode) are ignored. */
+export function saveConfig(config: BackpackConfig): void {
+  try {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   } catch {
     // Persistence is best-effort; ignore storage errors.
   }

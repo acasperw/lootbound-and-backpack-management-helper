@@ -77,6 +77,18 @@
   cursor: not-allowed;
 }
 
+/* Pushed to the trailing edge and tinted red to set the destructive action apart. */
+.reset {
+  color: #f2c1bd;
+  border-color: var(--color-invalid);
+  margin-left: 20px;
+}
+
+.reset:hover {
+  background: var(--color-invalid-soft);
+  border-color: var(--color-invalid);
+}
+
 .primary {
   padding: 0.5rem 1.25rem;
   background: var(--color-accent);

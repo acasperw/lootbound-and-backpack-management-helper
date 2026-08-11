@@ -39,6 +39,23 @@ export function createRectMask(cols: number, rows: number): boolean[][] {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => true));
 }
 
+/** Largest grid dimension (in cells) the backpack may span in either axis. */
+export const MAX_GRID_SIZE = 10;
+
+/**
+ * Resize a mask to `cols × rows`, keeping cells that still fall inside the new
+ * bounds and defaulting any newly-exposed cells to usable.
+ */
+export function resizeMask(
+  mask: readonly (readonly boolean[])[],
+  cols: number,
+  rows: number,
+): boolean[][] {
+  return Array.from({ length: rows }, (_, y) =>
+    Array.from({ length: cols }, (_, x) => mask[y]?.[x] ?? true),
+  );
+}
+
 /**
  * Rotate a shape clockwise by the given rotation.
  *

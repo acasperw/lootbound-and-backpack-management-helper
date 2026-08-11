@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { buildOccupancy, rotateShape, canPlaceShape } from '@/lib/grid';
 import { solve, scoreBuffs, fitSignature } from '@/lib/solver';
-import { loadStashes, saveStashes } from '@/lib/storage';
+import { loadConfig, loadStashes, saveConfig, saveStashes } from '@/lib/storage';
 import { DEFAULT_BACKPACK, STARTER_STASH } from '@/features/backpack/itemCatalog';
 import RefineWorker from '@/features/backpack/refineWorker?worker';
 import type {
@@ -65,7 +65,9 @@ function initStashes(): Stash[] {
  * {@link useBackpack} hook.
  */
 export function BackpackProvider({ children }: { children: ReactNode }) {
-  const [config] = useState<BackpackConfig>(DEFAULT_BACKPACK);
+  const [config, setConfig] = useState<BackpackConfig>(
+    () => loadConfig() ?? DEFAULT_BACKPACK,
+  );
   const [stashes, setStashes] = useState<Stash[]>(initStashes);
   const [activeStashId, setActiveStashId] = useState<string>(() => stashes[0].id);
   const [held, setHeld] = useState<HeldItem | null>(null);
@@ -76,6 +78,11 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
   const [refineProgress, setRefineProgress] = useState<number | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const runIdRef = useRef(0);
+
+  // Persist the backpack layout so a resized/reshaped grid survives a refresh.
+  useEffect(() => {
+    saveConfig(config);
+  }, [config]);
 
   // Persist the stashes (items and the cached packing) so a refresh restores
   // the last computed layout instead of recalculating it.
@@ -379,6 +386,12 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
     setHeld(null);
   }, [patchActive]);
 
+  // Adopt a new backpack layout; the auto-fit effect re-packs each stash for it.
+  const updateBackpackConfig = useCallback((next: BackpackConfig) => {
+    setConfig(next);
+    setHeld(null);
+  }, []);
+
   const value = useMemo<BackpackContextValue>(
     () => ({
       config,
@@ -410,6 +423,7 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       returnHeld,
       removePlaced,
       reset,
+      updateBackpackConfig,
       canPlaceHeldAt,
     }),
     [
@@ -442,6 +456,7 @@ export function BackpackProvider({ children }: { children: ReactNode }) {
       returnHeld,
       removePlaced,
       reset,
+      updateBackpackConfig,
       canPlaceHeldAt,
     ],
   );

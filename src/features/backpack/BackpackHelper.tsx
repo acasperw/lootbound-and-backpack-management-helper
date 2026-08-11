@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBackpack } from '@/features/backpack/useBackpack';
 import { BackpackGrid } from '@/features/backpack/BackpackGrid';
+import { GridEditor } from '@/features/backpack/GridEditor';
 import { StashPanel } from '@/features/backpack/StashPanel';
 import { StashTabs } from '@/features/backpack/StashTabs';
 import { ItemEditorDrawer } from '@/features/backpack/ItemEditorDrawer';
@@ -29,6 +30,8 @@ export function BackpackHelper() {
     returnHeld,
     reset,
   } = useBackpack();
+
+  const [gridEditorOpen, setGridEditorOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -96,6 +99,15 @@ export function BackpackHelper() {
           <button
             type="button"
             className={styles.button}
+            onClick={() => setGridEditorOpen((open) => !open)}
+            aria-expanded={gridEditorOpen}
+            title="Change the backpack size and shape"
+          >
+            {gridEditorOpen ? 'Close grid editor' : 'Edit grid'}
+          </button>
+          <button
+            type="button"
+            className={`${styles.button} ${styles.reset}`}
             onClick={() => {
               trackEvent('reset');
               reset();
@@ -105,6 +117,10 @@ export function BackpackHelper() {
             Reset
           </button>
         </div>
+
+        {gridEditorOpen ? (
+          <GridEditor onClose={() => setGridEditorOpen(false)} />
+        ) : null}
 
         {unplaced.length > 0 ? (
           <p className={styles.warning} role="status">

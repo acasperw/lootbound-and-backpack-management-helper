@@ -157,7 +157,7 @@ export function BackpackGrid() {
   const cols = Array.from({ length: config.cols }, (_, x) => x);
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.wrapper} style={{ '--cols': config.cols } as CSSProperties}>
       <div
         className={styles.grid}
         style={{ '--cols': config.cols } as CSSProperties}

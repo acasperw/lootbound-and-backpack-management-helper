@@ -95,6 +95,10 @@
 
 .hint {
   margin: 0;
+  /* Cap the hint to the grid's width so long lines wrap instead of stretching
+     the wrapper wider than the grid on small layouts. */
+  max-inline-size: calc(var(--cols) * var(--cell-size) + (var(--cols) + 1) * 2px);
+  margin-inline: auto;
   font-size: 0.85rem;
   color: var(--color-text-muted);
   text-align: center;

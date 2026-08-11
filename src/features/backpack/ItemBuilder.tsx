@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBackpack } from '@/features/backpack/useBackpack';
 import { ShapeEditor } from '@/features/backpack/ShapeEditor';
 import { BuffEditor, emptyBuffPattern } from '@/features/backpack/BuffEditor';
@@ -17,12 +17,20 @@ import styles from '@/features/backpack/ItemBuilder.module.css';
 const EDITOR_SIZE = 6;
 const EDGES: readonly EdgeConstraint[] = ['top', 'bottom', 'left', 'right'];
 
-/** Grouped `<option>`s for a category `<select>`, reused for items and buffs. */
-function CategoryOptions(): ReactNode {
+/**
+ * Grouped `<option>`s for a category `<select>`.
+ *
+ * @param includeGroups - When true, each group offers a `"… (all)"` option
+ *   targeting the whole group. Only buffs may target a group; an item must be
+ *   tagged with a concrete leaf type.
+ */
+function CategoryOptions({ includeGroups = false }: { includeGroups?: boolean }): ReactNode {
   return CATEGORY_TREE.map((group) =>
     group.children ? (
       <optgroup key={group.id} label={group.label}>
-        <option value={group.id}>{`${group.label} (all)`}</option>
+        {includeGroups ? (
+          <option value={group.id}>{`${group.label} (all)`}</option>
+        ) : null}
         {group.children.map((leaf) => (
           <option key={leaf.id} value={leaf.id}>
             {leaf.label}
@@ -69,10 +77,13 @@ const createBuff = (): ItemBuff => ({
 export function ItemBuilder({
   item,
   onDone,
+  onDirtyChange,
 }: {
   /** When provided, the form edits this item instead of adding a new one. */
   item?: ItemDefinition;
   onDone?: () => void;
+  /** Reports whether the form has unsaved edits, so hosts can guard closing. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { addItem, updateItem } = useBackpack();
 
@@ -94,6 +105,26 @@ export function ItemBuilder({
   const cellCount = useMemo(() => shapeCells(grid).length, [grid]);
   const contiguous = useMemo(() => isContiguous(trimShape(grid)), [grid]);
   const canAdd = cellCount > 0 && contiguous;
+
+  // Snapshot the initial form so we can detect (and warn about) unsaved edits.
+  const initialSnapshot = useRef<string>(
+    JSON.stringify({
+      name: item?.name ?? '',
+      color: item?.color ?? ITEM_COLORS[0],
+      categoryId: item?.categoryId ?? 'misc',
+      allowRotation: item?.constraints.allowRotation ?? true,
+      edge: item?.constraints.edge ?? null,
+      grid: item ? gridFromPreset(item.shape) : emptyGrid(),
+      buffs: item?.buffs ? item.buffs.map((buff) => ({ ...buff })) : [],
+    }),
+  );
+  const dirty =
+    JSON.stringify({ name, color, categoryId, allowRotation, edge, grid, buffs }) !==
+    initialSnapshot.current;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const selectEdge = (next: EdgeConstraint) => {
     setEdge((current) => (current === next ? null : next));
@@ -283,7 +314,7 @@ export function ItemBuilder({
                         updateBuff(buff.id, { target: event.target.value })
                       }
                     >
-                      <CategoryOptions />
+                      <CategoryOptions includeGroups />
                     </select>
                   </label>
                   <label className={styles.buffField}>
