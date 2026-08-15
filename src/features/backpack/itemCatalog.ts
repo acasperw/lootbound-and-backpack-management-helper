@@ -45,7 +45,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'red-hood-cloak',
     name: 'Red Hood Cloak',
-    categoryId: 'armor.chest',
+    categoryId: 'armor.plate-armor',
     color: '#9b2f2a',
     weight: 3,
     value: 320,
@@ -78,7 +78,7 @@ export const STARTER_STASH: readonly ItemDefinition[] = [
   {
     id: 'plate-armor',
     name: 'Plate Armor',
-    categoryId: 'armor.chest',
+    categoryId: 'armor.plate-armor',
     color: '#8a94a6',
     weight: 8,
     value: 450,
