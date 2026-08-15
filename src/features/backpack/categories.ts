@@ -19,8 +19,8 @@ export const CATEGORY_TREE: readonly CategoryNode[] = [
       { id: 'weapon.sword', label: 'Sword' },
       { id: 'weapon.hammer', label: 'Hammer' },
       { id: 'weapon.staff', label: 'Staff' },
-      // { id: 'weapon.mace', label: 'Mace' },
-      // { id: 'weapon.bow', label: 'Bow' },
+      { id: 'weapon.bow', label: 'Bow' },
+      { id: 'weapon.arrow', label: 'Arrow' },
       { id: 'weapon.instrument', label: 'Instrument' },
     ],
   },
@@ -34,7 +34,24 @@ export const CATEGORY_TREE: readonly CategoryNode[] = [
       { id: 'armor.plate-armor', label: 'Plate Armor' },
       { id: 'armor.mantle', label: 'Mantle' },
       // { id: 'armor.boots', label: 'Boots' },
-      // { id: 'armor.shield', label: 'Shield' },
+    ],
+  },
+  {
+    id: 'shield',
+    label: 'Shields',
+    children: [
+      { id: 'shield.shield', label: 'Shield' },
+      { id: 'shield.buckler', label: 'Buckler' },
+    ],
+  },
+  { id: 'structure', label: 'Structures' },
+  {
+    id: 'magic',
+    label: 'Magic',
+    children: [
+      { id: 'magic.wand', label: 'Wand' },
+      { id: 'magic.staff', label: 'Staff' },
+      { id: 'magic.book', label: 'Book' },
     ],
   },
   {
@@ -43,19 +60,22 @@ export const CATEGORY_TREE: readonly CategoryNode[] = [
     children: [
       { id: 'accessory.ring', label: 'Ring' },
       { id: 'accessory.necklace', label: 'Necklace' },
+      { id: 'accessory.gem', label: 'Gem' },
     ],
   },
-  // {
-  //   id: 'consumable',
-  //   label: 'Consumables',
-  //   children: [
-  //     { id: 'consumable.potion', label: 'Potion' },
-  //     { id: 'consumable.food', label: 'Food' },
-  //     { id: 'consumable.scroll', label: 'Scroll' },
-  //   ],
-  // },
-  // { id: 'quest', label: 'Quest' },
-  // { id: 'misc', label: 'Misc' },
+  {
+    id: 'consumable',
+    label: 'Consumables',
+    children: [
+      { id: 'consumable.potion', label: 'Potion' },
+      { id: 'consumable.food', label: 'Food' },
+      { id: 'consumable.fish', label: 'Fish' },
+      { id: 'consumable.drink', label: 'Drink' },
+    ],
+  },
+  { id: 'relic', label: 'Relics' },
+  { id: 'curse', label: 'Curses' },
+  { id: 'misc', label: 'Miscellaneous' },
 ];
 
 /** Flat lookup from any category id (group or leaf) to its display label. */
