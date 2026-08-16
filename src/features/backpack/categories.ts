@@ -31,6 +31,7 @@ export const CATEGORY_TREE: readonly CategoryNode[] = [
       { id: 'armor.hat', label: 'Hat' },
       { id: 'armor.helmet', label: 'Helmet' },
       { id: 'armor.hood', label: 'Hood' },
+      { id: 'armor.jacket', label: 'Jacket' },
       { id: 'armor.plate-armor', label: 'Plate Armor' },
       { id: 'armor.mantle', label: 'Mantle' },
       // { id: 'armor.boots', label: 'Boots' },
